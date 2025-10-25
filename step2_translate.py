@@ -143,6 +143,86 @@ Begin translation:"""
         print(f"❌ 翻译失败: {e}")
         return []
 
+# =============================================================
+# 新增：整体润色（LLM从全局角度优化节奏与幽默）
+# =============================================================
+def refine_translation_globally(sentences: list, translations: list, style_info: dict) -> list:
+    print("\n" + "=" * 80)
+    print("🎭 正在进行整体润色（保持幽默与节奏感）")
+    print("=" * 80)
+
+    style_context = style_info.get("analysis", "")
+
+    # 构造中英对照文本
+    paired_lines = []
+    for i, s in enumerate(sentences):
+        zh = s.get("text", "").strip()
+        en = translations[i] if i < len(translations) else ""
+        if zh and en:
+            paired_lines.append(f"{i+1}. {zh}\n→ {en}")
+    paired_text = "\n".join(paired_lines)
+
+    prompt = f"""
+You are a bilingual humor script editor working on a video about AI imitating humans.
+Below is a bilingual (Chinese→English) translation of a humorous narration.
+
+Your task:
+1. Polish the English translation as a whole so it reads naturally, witty, and rhythmic.
+2. Preserve all jokes, humor, and comedic pacing.
+3. Keep the meaning faithful to the Chinese.
+4. Keep the numbering (1., 2., 3., ...). One line of English per line.
+5. Do NOT output the Chinese text, only the improved English.
+
+CONTENT STYLE:
+{style_context}
+
+CHINESE–ENGLISH DRAFT:
+{paired_text}
+
+Now rewrite the English lines according to the above requirements.
+Output format:
+1. ...
+2. ...
+"""
+
+    try:
+        print("\n🤖 LLM 正在整体润色...")
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a witty, natural-sounding English script editor."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2500
+        )
+
+        refined_text = response.choices[0].message.content.strip()
+        refined_lines = []
+        for line in refined_text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # 去掉序号
+            line = re.sub(r"^\d+[\.\)、]\s*", "", line)
+            line = clean_text(line)
+            if line:
+                refined_lines.append(line)
+
+        print(f"✅ 成功整体优化 {len(refined_lines)} 句")
+        print("润色预览:")
+        print("-" * 80)
+        for i in range(min(5, len(refined_lines))):
+            print(f"{i+1}. {refined_lines[i]}")
+        if len(refined_lines) > 5:
+            print(f"... (还有 {len(refined_lines)-5} 句)")
+        print("-" * 80)
+
+        return refined_lines
+
+    except Exception as e:
+        print(f"⚠️ 整体润色失败: {e}")
+        return translations
 
 # =============================================================
 # 第三步：长度微调（并打印前后对比）
@@ -160,44 +240,44 @@ def adjust_by_length(sentences: list, translations: list) -> list:
         text_zh = sent.get("text", "")
         text_en = translations[i]
 
-        target_words = max(3, len(text_zh) // 3)
+        target_words = len(text_zh)
         current_words = len(text_en.split())
 
         # 输出原始翻译
         print(f"\n[{i+1}] 原文: {text_zh}")
         print(f"     初译: {text_en}")
-        print(f"     词数: {current_words}, 目标: {target_words}")
+#         print(f"     词数: {current_words}, 目标: {target_words}")
 
-        if abs(current_words - target_words) <= 3:
-            adjusted_text = text_en
-            print("     ✅ 无需调整")
-        else:
-            print("     🔧 调整中...")
-            try:
-                prompt = f"""Adjust this English sentence so that its length (word count) is close to {target_words} words.
-Keep the same meaning, tone, and fluency.
-Sentence: "{text_en}"
-Output only the adjusted sentence."""
-                response = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": "You are a fluent English editor."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.4,
-                    max_tokens=100
-                )
-                adjusted_text = clean_text(response.choices[0].message.content.strip())
-                if not adjusted_text:
-                    adjusted_text = text_en
-                print(f"     ✅ 调整后: {adjusted_text}")
-            except Exception as e:
-                print(f"     ⚠️ 调整失败: {e}")
-                adjusted_text = text_en
+#         if abs(current_words - target_words) <= 4:
+#             adjusted_text = text_en
+#             print("     ✅ 无需调整")
+#         else:
+#             print("     🔧 调整中...")
+#             try:
+#                 prompt = f"""Adjust this English sentence so that its length (word count) is close to {target_words} words.
+# Keep the same meaning, tone, and fluency.
+# Sentence: "{text_en}"
+# Output only the adjusted sentence."""
+#                 response = client.chat.completions.create(
+#                     model=MODEL_NAME,
+#                     messages=[
+#                         {"role": "system", "content": "You are a fluent English editor."},
+#                         {"role": "user", "content": prompt}
+#                     ],
+#                     temperature=0.4,
+#                     max_tokens=100
+#                 )
+#                 adjusted_text = clean_text(response.choices[0].message.content.strip())
+#                 if not adjusted_text:
+#                     adjusted_text = text_en
+#                 print(f"     ✅ 调整后: {adjusted_text}")
+#             except Exception as e:
+#                 print(f"     ⚠️ 调整失败: {e}")
+#                 adjusted_text = text_en
 
-            time.sleep(0.4)
+#             time.sleep(0.4)
 
-        adjusted.append(adjusted_text)
+        adjusted.append(text_en)
 
     return adjusted
 
@@ -229,6 +309,8 @@ def main():
     if not translations:
         print("❌ 翻译失败")
         return
+    # 2.5️⃣ 整体润色
+    # translations = refine_translation_globally(sentences, translations, style_info)
 
     # 3️⃣ 长度微调 + 输出对比
     adjusted = adjust_by_length(sentences, translations)

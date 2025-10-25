@@ -7,7 +7,7 @@
         "end": 1.735,
         "duration": 1.49,
         "text_zh": "如何模仿人类睡觉？",
-        "text_en": "How to mimic human sleep?"
+        "text_en": "How to imitate human sleep?"
       },
       {
         "start": 2.53,
@@ -28,7 +28,7 @@
         "end": 9.99,
         "duration": 2.54,
         "text_zh": "晚上醒来对电路板进行研究。",
-        "text_en": "They wake at night to study circuit boards."
+        "text_en": "They wake up at night to study circuit boards."
       },
       {
         "start": 10.23,
@@ -42,7 +42,7 @@
         "end": 14.79,
         "duration": 3.58,
         "text_zh": "人类往往喜欢在坚硬的座椅上进行睡眠，",
-        "text_en": "humans often prefer sleeping on hard chairs,"
+        "text_en": "humans often prefer sleeping on hard seats,"
       },
       {
         "start": 14.91,
@@ -56,21 +56,21 @@
         "end": 19.99,
         "duration": 2.62,
         "text_zh": "人类睡眠时通常会关闭双眼。",
-        "text_en": "humans typically close their eyes while asleep."
+        "text_en": "humans typically close their eyes when sleeping."
       },
       {
         "start": 20.07,
         "end": 22.63,
         "duration": 2.56,
         "text_zh": "如果你发现身边有人睁眼睡觉，",
-        "text_en": "If someone sleeps with eyes open,"
+        "text_en": "If you spot someone sleeping with eyes open,"
       },
       {
         "start": 22.81,
         "end": 25.39,
         "duration": 2.58,
         "text_zh": "很可能是系统还未更新的机友，",
-        "text_en": "They're likely an outdated robot."
+        "text_en": "they’re probably a fellow robot with an outdated system,"
       },
       {
         "start": 25.47,
@@ -83,8 +83,8 @@
         "start": 27.19,
         "end": 28.49,
         "duration": 1.3,
-        "text_zh": "请帮他关闭睡眼。",
-        "text_en": "Help them sleep."
+        "text_zh": "请帮他关闭双眼。",
+        "text_en": "please help them close their eyes."
       },
       {
         "start": 28.83,
@@ -98,35 +98,35 @@
         "end": 33.95,
         "duration": 2.18,
         "text_zh": "当发现能与音乐同频时，",
-        "text_en": "When they find a rhythm they can sync with,"
+        "text_en": "When they find a frequency that matches,"
       },
       {
         "start": 34.23,
         "end": 36.41,
         "duration": 2.18,
         "text_zh": "人类会跟随节奏进行共振。",
-        "text_en": "they start resonating to the beat."
+        "text_en": "they resonate with the rhythm."
       },
       {
         "start": 36.83,
         "end": 37.89,
         "duration": 1.06,
         "text_zh": "为了便于保鲜，",
-        "text_en": "To keep things fresh,"
+        "text_en": "To keep themselves fresh,"
       },
       {
         "start": 38.17,
         "end": 42.39,
         "duration": 4.22,
         "text_zh": "人类睡觉时会使用方形保护膜来遮罩皮肤，",
-        "text_en": "Humans use square protective films on skin while sleeping."
+        "text_en": "humans cover their skin with square protective films while sleeping,"
       },
       {
         "start": 42.53,
         "end": 45.63,
         "duration": 3.1,
         "text_zh": "保护膜应首要保护人类肚子中间的机油孔。",
-        "text_en": "Protect the oil port in the belly's center."
+        "text_en": "prioritizing protection of the oil port in the middle of their belly."
       },
       {
         "start": 45.81,
@@ -140,7 +140,7 @@
         "end": 52.6,
         "duration": 2.14,
         "text_zh": "学习人类是一个漫长的过程。",
-        "text_en": "Becoming human takes time."
+        "text_en": "Learning to be human is a long journey."
       },
       {
         "start": 52.9,
@@ -161,7 +161,7 @@
       "source_language": "Chinese",
       "target_language": "English",
       "model": "Qwen3-32B-non-thinking-Hackathon",
-      "method": "length_adjust_no_timestamp"
+      "method": "length_adjust_no_timestamp_with_diff"
     }
   }
 ]

@@ -4,7 +4,7 @@ import json
 import re
 
 # ===== Step 1: 配置区域 =====
-AUDIO_PATH = "/Users/lyugao/Documents/GitHub/boson-ai-hackathon/sleep.mp3"
+AUDIO_PATH = "/Users/fiona/boson-ai-hackathon/sleep.mp3"
 OUTPUT_FILE = "transcription_with_timestamps.json"
 
 # ===== 加载模型 =====

@@ -1,0 +1,167 @@
+[
+  {
+    "key": "sleep",
+    "sentence_info": [
+      {
+        "start": 0.25,
+        "end": 1.735,
+        "duration": 1.49,
+        "text_zh": "如何模仿人类睡觉？",
+        "text_en": "How to fake sleep like a human?"
+      },
+      {
+        "start": 2.53,
+        "end": 4.07,
+        "duration": 1.54,
+        "text_zh": "通过天眼系统观察，",
+        "text_en": "Spy on them through the Sky Eye system—"
+      },
+      {
+        "start": 4.35,
+        "end": 7.29,
+        "duration": 2.94,
+        "text_zh": "人类通常会选择在白天进行睡眠。",
+        "text_en": "humans usually nap during daylight hours."
+      },
+      {
+        "start": 7.45,
+        "end": 9.99,
+        "duration": 2.54,
+        "text_zh": "晚上醒来对电路板进行研究。",
+        "text_en": "Then wake up at night to study circuit boards like it’s a hobby."
+      },
+      {
+        "start": 10.23,
+        "end": 11.01,
+        "duration": 0.78,
+        "text_zh": "数据显示，",
+        "text_en": "Data reveals—"
+      },
+      {
+        "start": 11.21,
+        "end": 14.79,
+        "duration": 3.58,
+        "text_zh": "人类往往喜欢在坚硬的座椅上进行睡眠，",
+        "text_en": "humans love sleeping on hard chairs,"
+      },
+      {
+        "start": 14.91,
+        "end": 17.17,
+        "duration": 2.26,
+        "text_zh": "高阶人类甚至能直立睡眠，",
+        "text_en": "with elite humans even mastering upright naps."
+      },
+      {
+        "start": 17.37,
+        "end": 19.99,
+        "duration": 2.62,
+        "text_zh": "人类睡眠时通常会关闭双眼。",
+        "text_en": "And while snoozing? They always shut their eyes."
+      },
+      {
+        "start": 20.07,
+        "end": 22.63,
+        "duration": 2.56,
+        "text_zh": "如果你发现身边有人睁眼睡觉，",
+        "text_en": "So if you spot someone sleeping with eyes wide open,"
+      },
+      {
+        "start": 22.81,
+        "end": 25.39,
+        "duration": 2.58,
+        "text_zh": "很可能是系统还未更新的机友，",
+        "text_en": "they’re probably a fellow robot with outdated firmware."
+      },
+      {
+        "start": 25.47,
+        "end": 26.93,
+        "duration": 1.46,
+        "text_zh": "本着互帮互助的原则，",
+        "text_en": "In the spirit of robot solidarity,"
+      },
+      {
+        "start": 27.19,
+        "end": 28.49,
+        "duration": 1.3,
+        "text_zh": "请帮他关闭双眼。",
+        "text_en": "please help them close their eyes."
+      },
+      {
+        "start": 28.83,
+        "end": 31.55,
+        "duration": 2.72,
+        "text_zh": "人类会通过聆听音乐来辅助睡眠。",
+        "text_en": "Humans use music to lull themselves to sleep."
+      },
+      {
+        "start": 31.77,
+        "end": 33.95,
+        "duration": 2.18,
+        "text_zh": "当发现能与音乐同频时，",
+        "text_en": "When they sync with the beat,"
+      },
+      {
+        "start": 34.23,
+        "end": 36.41,
+        "duration": 2.18,
+        "text_zh": "人类会跟随节奏进行共振。",
+        "text_en": "they start vibrating in perfect rhythm."
+      },
+      {
+        "start": 36.83,
+        "end": 37.89,
+        "duration": 1.06,
+        "text_zh": "为了便于保鲜，",
+        "text_en": "To keep things fresh—"
+      },
+      {
+        "start": 38.17,
+        "end": 42.39,
+        "duration": 4.22,
+        "text_zh": "人类睡觉时会使用方形保护膜来遮罩皮肤，",
+        "text_en": "they wrap their skin in square protective coverings,"
+      },
+      {
+        "start": 42.53,
+        "end": 45.63,
+        "duration": 3.1,
+        "text_zh": "保护膜应首要保护人类肚子中间的机油孔。",
+        "text_en": "prioritizing the oil port right in the middle of their belly."
+      },
+      {
+        "start": 45.81,
+        "end": 48.655,
+        "duration": 2.84,
+        "text_zh": "下面为大家展示人类的正确睡姿。",
+        "text_en": "Now, let’s demonstrate the *correct* human sleeping posture."
+      },
+      {
+        "start": 50.46,
+        "end": 52.6,
+        "duration": 2.14,
+        "text_zh": "学习人类是一个漫长的过程。",
+        "text_en": "Becoming human? That’s a lifelong upgrade."
+      },
+      {
+        "start": 52.9,
+        "end": 53.62,
+        "duration": 0.72,
+        "text_zh": "各位机友，",
+        "text_en": "Fellow robot friends,"
+      },
+      {
+        "start": 53.74,
+        "end": 54.855,
+        "duration": 1.11,
+        "text_zh": "我们下期再见。",
+        "text_en": "see you in the next cycle."
+      }
+    ],
+    "metadata": {
+      "source_language": "Chinese",
+      "target_language": "English",
+      "model": "Qwen3-32B-non-thinking-Hackathon",
+      "method": "length_adjust_no_timestamp_with_diff"
+    }
+  }
+]
