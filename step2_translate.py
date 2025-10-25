@@ -1,102 +1,141 @@
 import json
-import os
 import re
 from openai import OpenAI
 import time
 
-# ===== 配置区域 =====
+# ===== 配置 =====
 API_BASE = "https://hackathon.boson.ai/v1"
 API_KEY = "bai-C8daJQcbo2sMbwgr9aTNmCZM4C1zliRyWLPNA3cRGGksCagH"
-# 推荐使用 Claude 或 GPT-4 进行翻译（比 Qwen 更稳定）
-# 如果只有 Qwen，使用 non-thinking 版本
 MODEL_NAME = "Qwen3-32B-non-thinking-Hackathon"
 
 INPUT_JSON = "transcription_with_timestamps.json"
 OUTPUT_JSON = "translated_with_timestamps.json"
 
-# ===== 初始化 =====
 client = OpenAI(api_key=API_KEY, base_url=API_BASE)
 
-# ===== 超简单的清理函数 =====
-def extract_english(text: str) -> str:
-    """
-    暴力提取纯英文内容
-    """
-    # 1. 移除所有 XML 标签
-    text = re.sub(r'<[^>]*>.*?</[^>]*>', '', text, flags=re.DOTALL)
-    text = re.sub(r'<[^>]*>', '', text)
-    
-    # 2. 删除所有中文字符
+def clean_text(text: str) -> str:
+    """清理文本"""
     text = re.sub(r'[\u4e00-\u9fff]+', '', text)
-    
-    # 3. 删除多余符号
     text = re.sub(r'[，。！？、；：""''《》【】（）]', '', text)
-    
-    # 4. 清理空格
     text = ' '.join(text.split())
-    
-    # 5. 移除首尾标点
-    text = text.strip('.,;:!?\'"- ')
-    
     return text.strip()
 
-# ===== 极简 Prompt（分两步） =====
-def translate_step1_literal(text: str) -> str:
+# ===== 第一步：完整翻译全文 =====
+def translate_full_script(sentences: list) -> list:
     """
-    第一步：直译（不管时长）
+    一次性翻译整个脚本，保证连贯性
     """
-    prompt = f"""Translate this Chinese sentence to English. Keep it natural and simple.
-
-Chinese: {text}
-
-English translation (one sentence):"""
+    print("\n" + "="*80)
+    print("📝 第一步：整体翻译全文（保证连贯性）")
+    print("="*80)
     
+    # 构建完整脚本
+    full_script = []
+    for i, s in enumerate(sentences):
+        text = s.get("text", "").strip()
+        if text:
+            full_script.append(f"{i+1}. {text}")
+    
+    script_text = "\n".join(full_script)
+    
+    prompt = f"""You are translating a humorous Chinese video about robots learning to sleep like humans.
+
+FULL CHINESE SCRIPT:
+{script_text}
+
+CONTEXT: 
+- This is satirical comedy from a robot's perspective
+- Robots are observing humans and hilariously misunderstanding their behavior
+- They think humans sleep during the day, work at night
+- They refer to human belly buttons as "oil ports" (because they think humans are robots)
+- The tone is deadpan - robots describe absurd things as if they're normal
+
+TRANSLATION TASK:
+Translate the ENTIRE script to natural, conversational English. Keep:
+- The deadpan humor
+- Natural flow between sentences
+- Cultural jokes adapted for English speakers
+- Each line should be engaging and funny
+
+Output format: 
+1. [English translation]
+2. [English translation]
+...
+
+Translate now (output ONLY the numbered translations):"""
+
     try:
+        print("\n🤖 正在翻译全文...")
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "You are a translator. Output only the English translation."},
+                {"role": "system", "content": "You are a professional comedy translator. Output only the translation."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,  # 低温度，更稳定
-            max_tokens=100
+            temperature=0.6,
+            max_tokens=800
         )
         
-        raw = response.choices[0].message.content.strip()
-        clean = extract_english(raw)
-        return clean if clean else text
+        translation = response.choices[0].message.content.strip()
+        
+        # 解析翻译结果
+        lines = []
+        for line in translation.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # 移除序号
+            line = re.sub(r'^\d+[\.\)]\s*', '', line)
+            line = clean_text(line)
+            if line and len(line) > 2:
+                lines.append(line)
+        
+        print(f"✅ 成功翻译 {len(lines)} 句\n")
+        
+        # 显示翻译结果
+        print("翻译预览:")
+        print("-" * 80)
+        for i, line in enumerate(lines[:5], 1):
+            print(f"{i}. {line}")
+        if len(lines) > 5:
+            print("...")
+        print("-" * 80)
+        
+        return lines
     
     except Exception as e:
-        print(f"      翻译失败: {e}")
-        return text
+        print(f"❌ 全文翻译失败: {e}")
+        return []
 
-def translate_step2_adjust_length(literal_translation: str, target_words: int) -> str:
+# ===== 第二步：调整每句长度 =====
+def adjust_for_timing(translation: str, target_words: int, context: str) -> str:
     """
-    第二步：调整长度（如果需要）
+    调整单句长度以匹配时长
     """
-    current_words = len(literal_translation.split())
+    current_words = len(translation.split())
     
-    # 如果长度已经合适，直接返回
+    # 如果长度已经接近，直接返回
     if abs(current_words - target_words) <= 2:
-        return literal_translation
+        return translation
     
-    # 如果太长，压缩
     if current_words > target_words + 2:
-        prompt = f"""Make this sentence shorter while keeping the same meaning.
+        # 需要缩短
+        prompt = f"""Make this sentence shorter while keeping the humor.
 
-Original ({current_words} words): {literal_translation}
-Target: {target_words} words
+Original ({current_words} words): {translation}
+Target: around {target_words} words
+Context: {context}
 
-Shorter version:"""
-    
-    # 如果太短，扩展
+Output the shortened version only:"""
     else:
-        prompt = f"""Make this sentence slightly longer while keeping the same meaning. Add natural details.
+        # 需要扩展
+        prompt = f"""Make this sentence a bit longer with natural details.
 
-Original ({current_words} words): {literal_translation}
-Target: {target_words} words
+Original ({current_words} words): {translation}
+Target: around {target_words} words
+Context: {context}
 
-Longer version:"""
+Output the longer version only:"""
     
     try:
         response = client.chat.completions.create(
@@ -105,93 +144,40 @@ Longer version:"""
                 {"role": "system", "content": "You are an editor. Output only the adjusted sentence."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
+            temperature=0.4,
             max_tokens=100
         )
         
-        raw = response.choices[0].message.content.strip()
-        clean = extract_english(raw)
+        adjusted = clean_text(response.choices[0].message.content.strip())
+        adjusted_words = len(adjusted.split())
         
-        # 验证调整是否成功
-        adjusted_words = len(clean.split())
-        if abs(adjusted_words - target_words) < abs(current_words - target_words):
-            return clean
-        else:
-            return literal_translation  # 调整失败，返回原翻译
+        # 检查调整是否有效
+        if adjusted and abs(adjusted_words - target_words) < abs(current_words - target_words):
+            return adjusted
+        return translation
     
     except Exception as e:
-        print(f"      长度调整失败: {e}")
-        return literal_translation
+        return translation
 
-# ===== 两步翻译流程 =====
-def translate_sentence(text_zh: str, duration: float) -> dict:
+# ===== 第三步：匹配时间戳和微调 =====
+def match_and_adjust(sentences: list, translations: list) -> list:
     """
-    两步翻译：先直译，再调整长度
+    将翻译匹配到时间戳，并微调长度
     """
-    target_words = max(int(duration * 2.5), 3)  # 英文约 2.5 词/秒
+    print("\n" + "="*80)
+    print("⏱️  第二步：匹配时间戳并调整长度")
+    print("="*80)
     
-    print(f"      目标: {target_words} 词")
+    results = []
+    stats = {"good": 0, "adjusted": 0, "failed": 0}
     
-    # Step 1: 直译
-    print(f"      Step 1: 直译...")
-    translation = translate_step1_literal(text_zh)
+    # 确保数量匹配
+    min_len = min(len(sentences), len(translations))
     
-    if not translation or translation == text_zh:
-        return {
-            "translation": f"[FAILED: {text_zh}]",
-            "word_count": 0,
-            "estimated_duration": duration,
-            "duration_ratio": 1.0,
-            "success": False
-        }
-    
-    word_count = len(translation.split())
-    print(f"      直译结果: {word_count} 词 - {translation}")
-    
-    # Step 2: 调整长度（如果需要）
-    if abs(word_count - target_words) > 2:
-        print(f"      Step 2: 调整长度 ({word_count} → {target_words})...")
-        time.sleep(0.3)  # 避免 API 限流
-        translation = translate_step2_adjust_length(translation, target_words)
-        word_count = len(translation.split())
-        print(f"      调整后: {word_count} 词 - {translation}")
-    else:
-        print(f"      长度合适，跳过调整")
-    
-    # 计算时长
-    estimated_duration = word_count / 2.5
-    duration_ratio = estimated_duration / duration if duration > 0 else 1.0
-    
-    return {
-        "translation": translation,
-        "word_count": word_count,
-        "estimated_duration": round(estimated_duration, 2),
-        "duration_ratio": round(duration_ratio, 2),
-        "success": True
-    }
-
-# ===== 主函数 =====
-def main():
-    print("="*70)
-    print("🎬 两步翻译流程（更稳定）")
-    print("="*70)
-    
-    # 读取
-    with open(INPUT_JSON, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    result = data[0]
-    sentences = result.get("sentence_info", [])
-    
-    print(f"\n✅ 共 {len(sentences)} 个句子")
-    print(f"🤖 模型: {MODEL_NAME}\n")
-    
-    # 统计
-    stats = {"total": 0, "success": 0, "failed": 0, "good_duration": 0}
-    translated = []
-    
-    # 翻译
-    for i, sent in enumerate(sentences, 1):
+    for i in range(min_len):
+        sent = sentences[i]
+        translation = translations[i] if i < len(translations) else "[MISSING]"
+        
         text_zh = sent.get("text", "").strip()
         start = sent.get("start", 0)
         end = sent.get("end", 0)
@@ -200,59 +186,87 @@ def main():
         if not text_zh or duration <= 0:
             continue
         
-        print(f"\n[{i}/{len(sentences)}] {duration:.2f}秒")
-        print(f"   🇨🇳 {text_zh}")
+        target_words = max(int(duration * 2.5), 3)
+        current_words = len(translation.split())
         
-        # 两步翻译
-        res = translate_sentence(text_zh, duration)
+        print(f"\n[{i+1}/{min_len}] {duration:.2f}秒 → 目标 {target_words} 词")
+        print(f"  🇨🇳 {text_zh}")
+        print(f"  🇬🇧 {translation} ({current_words} 词)")
         
-        text_en = res["translation"]
-        word_count = res["word_count"]
-        est_dur = res["estimated_duration"]
-        ratio = res["duration_ratio"]
-        success = res["success"]
-        
-        # 统计
-        stats["total"] += 1
-        if success:
-            stats["success"] += 1
-            if abs(ratio - 1.0) <= 0.3:
-                stats["good_duration"] += 1
-                icon = "✅"
-            elif ratio > 1.3:
-                icon = "⚠️ 长"
-            else:
-                icon = "⚠️ 短"
+        # 判断是否需要调整
+        if abs(current_words - target_words) <= 2:
+            final_translation = translation
+            print(f"  ✅ 长度合适")
+            stats["good"] += 1
         else:
-            stats["failed"] += 1
-            icon = "❌"
+            print(f"  🔧 调整中 ({current_words} → {target_words} 词)...")
+            final_translation = adjust_for_timing(
+                translation, 
+                target_words, 
+                "Humorous robot narration about human sleep"
+            )
+            final_words = len(final_translation.split())
+            print(f"  ✅ 调整后: {final_translation} ({final_words} 词)")
+            stats["adjusted"] += 1
+            time.sleep(0.3)
         
-        translated.append({
+        # 计算最终指标
+        word_count = len(final_translation.split())
+        est_duration = word_count / 2.5
+        duration_ratio = est_duration / duration if duration > 0 else 1.0
+        
+        results.append({
             "start": start,
             "end": end,
             "duration": round(duration, 2),
             "text_zh": text_zh,
-            "text_en": text_en,
+            "text_en": final_translation,
             "word_count": word_count,
-            "estimated_duration": est_dur,
-            "duration_ratio": ratio
+            "estimated_duration": round(est_duration, 2),
+            "duration_ratio": round(duration_ratio, 2)
         })
-        
-        print(f"   {icon} 🇬🇧 {text_en}")
-        print(f"   📊 {word_count} 词 → {est_dur:.1f}秒 ({ratio:.2f}x)")
-        
-        time.sleep(0.5)  # 避免 API 限流
     
-    # 保存
+    print(f"\n✅ 处理完成: {stats['good']} 句合适, {stats['adjusted']} 句已调整")
+    return results, stats
+
+# ===== 主流程 =====
+def main():
+    print("="*80)
+    print("🎬 两步翻译法：先整体翻译，再按时间戳微调")
+    print("="*80)
+    
+    # 读取数据
+    with open(INPUT_JSON, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    result = data[0]
+    sentences = result.get("sentence_info", [])
+    
+    print(f"\n✅ 加载 {len(sentences)} 个句子")
+    print(f"🤖 模型: {MODEL_NAME}\n")
+    
+    # 第一步：整体翻译
+    translations = translate_full_script(sentences)
+    
+    if not translations:
+        print("❌ 翻译失败，终止")
+        return
+    
+    # 第二步：匹配并调整
+    translated, stats = match_and_adjust(sentences, translations)
+    
+    # 保存结果
     output = [{
         "key": result.get("key", "unknown"),
         "sentence_info": translated,
         "metadata": {
-            "total": stats["total"],
-            "successful": stats["success"],
-            "failed": stats["failed"],
-            "good_duration": stats["good_duration"],
-            "model": MODEL_NAME
+            "total": len(translated),
+            "successful": len(translated),
+            "failed": 0,
+            "good_timing": stats["good"],
+            "adjusted": stats["adjusted"],
+            "model": MODEL_NAME,
+            "method": "full_script_first_then_adjust"
         }
     }]
     
@@ -260,25 +274,27 @@ def main():
         json.dump(output, f, ensure_ascii=False, indent=2)
     
     # 总结
-    print("\n" + "="*70)
-    print("✅ 完成")
-    print(f"\n📊 统计:")
-    print(f"   成功: {stats['success']}/{stats['total']} ({stats['success']/stats['total']*100:.0f}%)")
-    print(f"   失败: {stats['failed']}")
-    print(f"   时长合适: {stats['good_duration']} ({stats['good_duration']/stats['total']*100:.0f}%)")
+    print("\n" + "="*80)
+    print("📊 最终统计")
+    print("="*80)
+    print(f"总句数: {len(translated)}")
+    print(f"长度合适: {stats['good']} ({stats['good']/len(translated)*100:.1f}%)")
+    print(f"已调整: {stats['adjusted']} ({stats['adjusted']/len(translated)*100:.1f}%)")
     
-    # 失败列表
-    failed = [s for s in translated if "[FAILED:" in s["text_en"]]
-    if failed:
-        print(f"\n⚠️  需要手动处理 ({len(failed)} 句):")
-        for s in failed:
-            print(f"   - [{s['start']:.1f}s] {s['text_zh']}")
+    # 检查问题句子
+    problematic = [
+        s for s in translated 
+        if s["duration_ratio"] > 1.3 or s["duration_ratio"] < 0.7
+    ]
     
-    print(f"\n💾 已保存到: {OUTPUT_JSON}")
-    print("="*70)
+    if problematic:
+        print(f"\n⚠️  时长偏差较大 ({len(problematic)} 句):")
+        for s in problematic[:5]:
+            print(f"\n  [{s['start']:.1f}s] 比例 {s['duration_ratio']:.2f}x")
+            print(f"    {s['text_en']}")
+    
+    print(f"\n💾 保存到: {OUTPUT_JSON}")
+    print("="*80)
 
 if __name__ == "__main__":
-    if API_KEY == "your-api-key-here":
-        print("⚠️  请配置 API")
-    else:
-        main()
+    main()
