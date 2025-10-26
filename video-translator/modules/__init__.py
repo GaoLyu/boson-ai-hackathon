@@ -1,5 +1,5 @@
 """
-视频翻译工具模块包
+Video Translation Toolkit Package
 """
 
 from .audio_extractor import AudioExtractor

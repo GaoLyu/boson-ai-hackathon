@@ -1,15 +1,15 @@
 """
-视频合成模块（增强版）
-功能：
-1. 合并视频和新音频
-2. 自动时长对齐
-3. 混合原音频（可选）
-4. 生成SRT字幕
-5. 烧录字幕（多种样式）
-   - 默认样式
-   - 黄色底部样式
-   - 模糊底条样式（漂亮推荐）
-6. 自适应字幕大小
+Video Composition Module (Enhanced Version)
+Features:
+1. Merge video and new audio
+2. Automatic duration alignment
+3. Optional original audio mix
+4. Generate SRT subtitles
+5. Burn-in subtitles (multiple styles)
+   - Default style
+   - Yellow bottom style
+   - Blurred bar style (recommended)
+6. Adaptive subtitle sizing
 """
 
 import os
@@ -20,14 +20,14 @@ from datetime import timedelta
 
 
 class VideoComposer:
-    """视频合成器 - 增强版"""
+    """Video Composer - Enhanced Version"""
     
-    # 字幕样式预设（支持自适应大小）
+    # Subtitle style presets (support adaptive scaling)
     SUBTITLE_STYLES = {
         "default": {
-            "name": "默认样式",
-            "description": "简单的白色字幕带黑色描边，自适应大小",
-            "base_font_size": 24,  # 基础字体大小（针对1080p）
+            "name": "Default Style",
+            "description": "Simple white subtitles with black outline, auto-scaled size",
+            "base_font_size": 24,  # Base font size (for 1080p)
             "force_style_template": (
                 "FontName=Arial,"
                 "PrimaryColour=&HFFFFFF&,"
@@ -38,9 +38,9 @@ class VideoComposer:
             )
         },
         "yellow_bottom": {
-            "name": "黄色底部",
-            "description": "黄色字幕，底部居中，黑色描边，自适应大小",
-            "base_font_size": 20,  # 基础字体大小（针对1080p）
+            "name": "Yellow Bottom",
+            "description": "Yellow subtitles, bottom centered, black outline, adaptive size",
+            "base_font_size": 20,  # Base font size (for 1080p)
             "force_style_template": (
                 "FontName=Arial,"
                 "PrimaryColour=&H00FFFF&,"
@@ -51,9 +51,9 @@ class VideoComposer:
             )
         },
         "blurred_bar": {
-            "name": "模糊底条（推荐）",
-            "description": "柔和的模糊底条背景 + 白色黑边字幕，自适应大小",
-            "base_font_size": 26,  # 基础字体大小（针对1080p）
+            "name": "Blurred Bar (Recommended)",
+            "description": "Soft blurred background bar + white subtitles with black edges, adaptive size",
+            "base_font_size": 26,  # Base font size (for 1080p)
             "force_style_template": (
                 "FontName=Arial,"
                 "PrimaryColour=&HFFFFFF&,"
@@ -64,16 +64,16 @@ class VideoComposer:
                 "Shadow=0,"
                 "Alignment=2"
             ),
-            "requires_filter": True  # 需要特殊的视频滤镜
+            "requires_filter": True  # Requires special video filter
         }
     }
     
     def __init__(self):
-        """初始化视频合成器"""
+        """Initialize the video composer"""
         self._check_ffmpeg()
     
     def _check_ffmpeg(self):
-        """检查ffmpeg是否可用"""
+        """Check if ffmpeg is available"""
         try:
             subprocess.run(
                 ["ffmpeg", "-version"], 
@@ -81,60 +81,53 @@ class VideoComposer:
                 check=True
             )
         except:
-            raise RuntimeError("❌ ffmpeg 未安装或不可用")
+            raise RuntimeError("❌ ffmpeg is not installed or not available")
     
     def _calculate_font_size(self, video_width, video_height, base_font_size=24):
         """
-        根据视频分辨率计算自适应字体大小
+        Calculate adaptive font size based on video resolution
         
         Args:
-            video_width: 视频宽度
-            video_height: 视频高度
-            base_font_size: 基础字体大小（针对1080p）
+            video_width: Video width
+            video_height: Video height
+            base_font_size: Base font size (for 1080p)
         
         Returns:
-            int: 计算后的字体大小
+            int: Calculated font size
         """
-        # 基准分辨率（1080p）
         base_width = 1920
         base_height = 1080
         
-        # 计算对角线像素数作为参考
         base_diagonal = (base_width ** 2 + base_height ** 2) ** 0.5
         current_diagonal = (video_width ** 2 + video_height ** 2) ** 0.5
         
-        # 根据对角线比例调整字体大小
         scale_factor = current_diagonal / base_diagonal
         
-        # 计算字体大小（最小16px，最大48px）
         font_size = max(16, min(48, int(base_font_size * scale_factor)))
         
-        print(f"📏 分辨率: {video_width}x{video_height}, 计算字体大小: {font_size}px")
+        print(f"📏 Resolution: {video_width}x{video_height}, Computed Font Size: {font_size}px")
         return font_size
     
     def _get_adaptive_style(self, video_path, style_name):
         """
-        获取自适应字幕样式
+        Get adaptive subtitle style
         
         Args:
-            video_path: 视频文件路径
-            style_name: 样式名称
+            video_path: Path to video file
+            style_name: Style name
         
         Returns:
-            dict: 包含自适应字体大小的样式配置
+            dict: Style configuration with adaptive font size
         """
         style_config = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["default"])
         
-        # 获取视频信息
         video_info = self.get_video_info(video_path)
         video_width = video_info.get("width", 1920)
         video_height = video_info.get("height", 1080)
         
-        # 计算自适应字体大小
         base_font_size = style_config.get("base_font_size", 24)
         adaptive_font_size = self._calculate_font_size(video_width, video_height, base_font_size)
         
-        # 构建完整的样式字符串
         template = style_config.get("force_style_template", "")
         force_style = template.replace("FontSize={}", f"FontSize={adaptive_font_size}")
         
@@ -149,87 +142,80 @@ class VideoComposer:
     def compose(self, video_path, audio_path, output_path, 
                 subtitle_path=None, subtitle_style="default", keep_original_audio=False):
         """
-        合成最终视频
+        Compose the final video
         
         Args:
-            video_path: 原视频路径
-            audio_path: 新音频路径
-            output_path: 输出视频路径
-            subtitle_path: 字幕文件路径（可选）
-            subtitle_style: 字幕样式 ("default", "yellow_bottom", "blurred_bar")
-            keep_original_audio: 是否保留原音频并混合
+            video_path: Original video path
+            audio_path: New audio path
+            output_path: Output video path
+            subtitle_path: Subtitle file path (optional)
+            subtitle_style: Subtitle style ("default", "yellow_bottom", "blurred_bar")
+            keep_original_audio: Whether to keep and mix original audio
         
         Returns:
-            bool: 是否成功
+            bool: Success status
         """
         if not os.path.exists(video_path):
-            print(f"❌ 视频文件不存在: {video_path}")
+            print(f"❌ Video file not found: {video_path}")
             return False
         
         if not os.path.exists(audio_path):
-            print(f"❌ 音频文件不存在: {audio_path}")
+            print(f"❌ Audio file not found: {audio_path}")
             return False
         
         try:
             print("=" * 80)
-            print("🎬 Step 5: 视频合成")
+            print("🎬 Step 5: Video Composition")
             print("=" * 80)
             
-            # 获取视频信息
             video_info = self.get_video_info(video_path)
-            print(f"📊 视频信息: {video_info['width']}x{video_info['height']}, {video_info['fps']:.2f}fps, {video_info['duration']:.1f}s")
+            print(f"📊 Video Info: {video_info['width']}x{video_info['height']}, {video_info['fps']:.2f}fps, {video_info['duration']:.1f}s")
             
-            # 先对齐音视频时长
             aligned_audio = self._align_audio_to_video(video_path, audio_path, output_path)
             if not aligned_audio:
-                print("⚠️  音频对齐失败，使用原音频")
+                print("⚠️  Audio alignment failed, using original audio")
                 aligned_audio = audio_path
             
-            # 根据配置选择合成方式
             if subtitle_path and os.path.exists(subtitle_path):
-                # 有字幕的情况 - 使用自适应样式
                 adaptive_style = self._get_adaptive_style(video_path, subtitle_style)
-                print(f"📝 字幕样式: {adaptive_style['name']} (字体大小: {adaptive_style['font_size']}px)")
+                print(f"📝 Subtitle Style: {adaptive_style['name']} (Font Size: {adaptive_style['font_size']}px)")
                 
                 return self._compose_with_subtitles(
                     video_path, aligned_audio, output_path,
                     subtitle_path, adaptive_style, keep_original_audio
                 )
             else:
-                # 无字幕的情况
-                print("📝 无字幕模式")
+                print("📝 No subtitle mode")
                 return self._compose_without_subtitles(
                     video_path, aligned_audio, output_path, keep_original_audio
                 )
         
         except Exception as e:
-            print(f"❌ 视频合成失败: {e}")
+            print(f"❌ Video composition failed: {e}")
             import traceback
             traceback.print_exc()
             return False
     
     def _align_audio_to_video(self, video_path, audio_path, output_path):
         """
-        自动对齐音频和视频的时长
-        Returns: 对齐后的音频路径
+        Automatically align audio and video durations
+        Returns: Path to aligned audio
         """
         try:
             video_dur = self._get_duration(video_path)
             audio_dur = self._get_duration(audio_path)
             
-            print(f"📊 视频时长: {video_dur:.1f}s")
-            print(f"📊 音频时长: {audio_dur:.1f}s")
+            print(f"📊 Video Duration: {video_dur:.1f}s")
+            print(f"📊 Audio Duration: {audio_dur:.1f}s")
             
-            # 如果时长差异小于0.5秒，不需要对齐
             if abs(video_dur - audio_dur) <= 0.5:
-                print("✅ 时长已对齐，无需调整")
+                print("✅ Durations already aligned, no adjustment needed")
                 return audio_path
             
-            # 创建对齐后的音频
             aligned_audio = str(Path(output_path).parent / "aligned_audio.wav")
             shorter = min(video_dur, audio_dur)
             
-            print(f"⚙️  对齐音频长度 → {shorter:.1f}s")
+            print(f"⚙️  Aligning audio length → {shorter:.1f}s")
             
             subprocess.run([
                 "ffmpeg", "-y",
@@ -239,14 +225,14 @@ class VideoComposer:
                 aligned_audio
             ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             
-            print("✅ 音频对齐完成")
+            print("✅ Audio alignment complete")
             return aligned_audio
         
         except:
             return None
     
     def _get_duration(self, file_path):
-        """获取媒体文件时长"""
+        """Get media file duration"""
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -258,8 +244,8 @@ class VideoComposer:
             return 0.0
     
     def _compose_without_subtitles(self, video_path, audio_path, output_path, keep_original_audio):
-        """合成视频（无字幕）"""
-        print("\n🔄 合并视频和音频...")
+        """Compose video (no subtitles)"""
+        print("\n🔄 Merging video and audio...")
         
         cmd = [
             "ffmpeg", "-y",
@@ -268,14 +254,12 @@ class VideoComposer:
         ]
         
         if keep_original_audio:
-            # 混合原音频和新音频
             cmd.extend([
                 "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=shortest[aout]",
                 "-map", "0:v:0",
                 "-map", "[aout]"
             ])
         else:
-            # 只使用新音频
             cmd.extend([
                 "-map", "0:v:0",
                 "-map", "1:a:0"
@@ -292,20 +276,19 @@ class VideoComposer:
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode == 0 and os.path.exists(output_path):
-            print(f"✅ 视频已保存: {output_path}")
+            print(f"✅ Video saved: {output_path}")
             print("=" * 80)
             return True
         else:
-            print(f"❌ 合成失败")
+            print(f"❌ Composition failed")
             if result.stderr:
-                print(f"   错误信息: {result.stderr[-300:]}")
+                print(f"   Error info: {result.stderr[-300:]}")
             return False
     
     def _compose_with_subtitles(self, video_path, audio_path, output_path, 
                                  subtitle_path, style_config, keep_original_audio):
-        """合成视频（带字幕）"""
+        """Compose video (with subtitles)"""
         
-        # 检查是否需要模糊底条效果
         if style_config.get("requires_filter", False):
             return self._compose_with_blurred_subtitles(
                 video_path, audio_path, output_path, 
@@ -319,13 +302,11 @@ class VideoComposer:
     
     def _compose_with_simple_subtitles(self, video_path, audio_path, output_path, 
                                         subtitle_path, style_config, keep_original_audio):
-        """合成视频（简单字幕样式）"""
-        print("\n🔄 合并视频、音频和字幕...")
+        """Compose video (simple subtitle style)"""
+        print("\n🔄 Merging video, audio, and subtitles...")
         
-        # 转义字幕路径
         subtitle_path_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
         
-        # 构建字幕滤镜（使用自适应样式）
         force_style = style_config.get("force_style", "")
         subtitles_filter = f"subtitles={subtitle_path_escaped}:force_style='{force_style}'"
         
@@ -335,9 +316,7 @@ class VideoComposer:
             "-i", audio_path
         ]
         
-        # 音频处理
         if keep_original_audio:
-            # 混合原音频和新音频，并添加字幕
             cmd.extend([
                 "-filter_complex", 
                 f"[0:a][1:a]amix=inputs=2:duration=shortest[aout];[0:v]{subtitles_filter}[vout]",
@@ -345,7 +324,6 @@ class VideoComposer:
                 "-map", "[aout]"
             ])
         else:
-            # 只使用新音频，添加字幕
             cmd.extend([
                 "-vf", subtitles_filter,
                 "-map", "0:v",
@@ -362,35 +340,27 @@ class VideoComposer:
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode == 0 and os.path.exists(output_path):
-            print(f"✅ 视频已保存: {output_path}")
+            print(f"✅ Video saved: {output_path}")
             print("=" * 80)
             return True
         else:
-            print(f"❌ 合成失败")
+            print(f"❌ Composition failed")
             if result.stderr:
-                print(f"   错误信息: {result.stderr[-300:]}")
+                print(f"   Error info: {result.stderr[-300:]}")
             return False
     
     def _compose_with_blurred_subtitles(self, video_path, audio_path, output_path, 
                                          subtitle_path, style_config, keep_original_audio):
         """
-        合成视频（模糊底条字幕样式）
-        创建柔和的模糊底条背景，然后叠加清晰的白色黑边字幕
+        Compose video (blurred bar subtitle style)
+        Creates a soft blurred bar background, then overlays clear white text
         """
-        print("\n🔄 合并视频、音频和模糊底条字幕...")
-        print("   提示: 这个样式最漂亮，但渲染时间稍长")
+        print("\n🔄 Merging video, audio, and blurred-bar subtitles...")
+        print("   Tip: This style looks best but takes slightly longer to render")
         
-        # 转义字幕路径
         subtitle_path_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
-        
-        # 获取自适应字幕样式
         force_style = style_config.get("force_style", "")
         
-        # 构建复杂的视频滤镜
-        # 1. 分离视频流为两份
-        # 2. 一份模糊底部25%区域
-        # 3. 混合模糊底条到原视频
-        # 4. 叠加字幕
         vf_filter = (
             "[0:v]split[v][vblur];"
             "[vblur]crop=iw:ih*0.25:0:ih*0.75,boxblur=20:1,format=rgba,colorchannelmixer=aa=0.7[blurred];"
@@ -404,9 +374,7 @@ class VideoComposer:
             "-i", audio_path
         ]
         
-        # 音频处理
         if keep_original_audio:
-            # 混合原音频和新音频
             cmd.extend([
                 "-filter_complex", 
                 f"{vf_filter}[vout];[0:a][1:a]amix=inputs=2:duration=shortest[aout]",
@@ -414,7 +382,6 @@ class VideoComposer:
                 "-map", "[aout]"
             ])
         else:
-            # 只使用新音频
             cmd.extend([
                 "-filter_complex", f"{vf_filter}",
                 "-map", "1:a"
@@ -427,108 +394,95 @@ class VideoComposer:
             output_path
         ])
         
-        print("   正在渲染（包含模糊效果）...")
+        print("   Rendering with blur effect...")
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode == 0 and os.path.exists(output_path):
-            print(f"✅ 视频已保存: {output_path}")
+            print(f"✅ Video saved: {output_path}")
             print("=" * 80)
             return True
         else:
-            print(f"❌ 合成失败")
+            print(f"❌ Composition failed")
             if result.stderr:
-                print(f"   错误信息: {result.stderr[-300:]}")
+                print(f"   Error info: {result.stderr[-300:]}")
             return False
     
     def create_subtitles(self, translated_json_path, output_srt_path):
         """
-        从翻译JSON生成SRT字幕文件
+        Generate SRT subtitle file from translated JSON
         
         Args:
-            translated_json_path: 翻译后的JSON文件路径
-            output_srt_path: 输出SRT文件路径
+            translated_json_path: Path to translated JSON
+            output_srt_path: Output SRT file path
         
         Returns:
-            bool: 是否成功
+            bool: Success status
         """
         try:
-            print("📝 生成SRT字幕...")
+            print("📝 Generating SRT subtitles...")
             
             with open(translated_json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             sentences = data[0].get("sentence_info", [])
-            
-            # 确保输出目录存在
             Path(output_srt_path).parent.mkdir(parents=True, exist_ok=True)
             
             with open(output_srt_path, 'w', encoding='utf-8') as f:
                 subtitle_index = 1
                 
                 for sent in sentences:
-                    # 优先使用英文翻译，否则使用通用翻译字段
                     text = sent.get("text_en", sent.get("text_translated", ""))
                     start = sent.get("start", 0)
                     end = sent.get("end", 0)
                     
-                    # 跳过失败的句子或空文本
                     if "[FAILED:" in text or not text or not text.strip():
                         continue
                     
-                    # 写入字幕（使用更精确的时间戳格式）
                     f.write(f"{subtitle_index}\n")
                     f.write(f"{self._sec_to_timestamp(start)} --> {self._sec_to_timestamp(end)}\n")
                     f.write(f"{text.strip()}\n\n")
                     
                     subtitle_index += 1
             
-            print(f"✅ 字幕文件已保存: {output_srt_path} ({subtitle_index-1} 条)")
+            print(f"✅ Subtitle file saved: {output_srt_path} ({subtitle_index-1} entries)")
             return True
         
         except Exception as e:
-            print(f"❌ 字幕生成失败: {e}")
+            print(f"❌ Subtitle generation failed: {e}")
             import traceback
             traceback.print_exc()
             return False
     
     def _sec_to_timestamp(self, seconds):
         """
-        将浮点秒转换为 SRT 格式时间戳
-        格式: 00:00:00,000
+        Convert float seconds to SRT timestamp format
+        Format: 00:00:00,000
         """
         td = timedelta(seconds=seconds)
         timestamp = str(td)
         
-        # 处理时间戳格式
         if '.' in timestamp:
-            # 有毫秒
             timestamp = timestamp.replace('.', ',')
-            # 确保毫秒是3位
             parts = timestamp.split(',')
             if len(parts) == 2:
                 ms = parts[1][:3].ljust(3, '0')
                 timestamp = f"{parts[0]},{ms}"
         else:
-            # 没有毫秒，添加 ,000
             timestamp = f"{timestamp},000"
         
-        # 确保格式为 HH:MM:SS,mmm
         if timestamp.count(':') == 2:
             return timestamp.rjust(12, "0")
         else:
-            # 补充缺失的小时部分
             return f"00:{timestamp}".rjust(12, "0")
     
     def get_video_info(self, video_path):
         """
-        获取视频信息
+        Get video info
         Returns: dict with duration, width, height, fps
         """
         try:
-            # 获取时长
             duration = self._get_duration(video_path)
             
-            # 获取分辨率和帧率
             cmd = [
                 "ffprobe",
                 "-v", "error",
@@ -548,7 +502,6 @@ class VideoComposer:
                 height = stream.get("height", 0)
                 fps_str = stream.get("r_frame_rate", "0/1")
                 
-                # 计算FPS
                 if '/' in fps_str:
                     num, den = fps_str.split('/')
                     fps = float(num) / float(den) if float(den) != 0 else 0
@@ -566,7 +519,7 @@ class VideoComposer:
         
         return {
             "duration": 0,
-            "width": 1920,  # 默认值
-            "height": 1080, # 默认值
+            "width": 1920,
+            "height": 1080,
             "fps": 0
         }
