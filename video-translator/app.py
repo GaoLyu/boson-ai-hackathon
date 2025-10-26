@@ -189,27 +189,19 @@ def main():
             else:
                 preset_voice = "female_american"  # 默认值
             
-            separate_vocals = st.checkbox(
-                "分离人声和背景音",
-                value=False,
-                help="使用Demucs分离人声和背景音乐（需要额外安装）"
+            st.info("💡 **智能音频处理**：系统会自动尝试分离人声和背景音，以提高识别准确度和配音质量")
+
+            separate_vocals = True
+            keep_background = True
+
+            bgm_volume = st.slider(
+                "背景音音量",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.18,
+                step=0.02,
+                help="调整最终视频中背景音乐的音量"
             )
-            
-            if separate_vocals:
-                keep_background = st.checkbox("保留背景音乐", value=True)
-                if keep_background:
-                    bgm_volume = st.slider(
-                        "背景音音量",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=0.18,
-                        step=0.02
-                    )
-                else:
-                    bgm_volume = 0.0
-            else:
-                keep_background = False
-                bgm_volume = 0.18
         
         st.divider()
         
