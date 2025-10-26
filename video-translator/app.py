@@ -181,10 +181,10 @@ def main():
                         "male_british"
                     ],
                     format_func=lambda x: {
-                        "female_american": "👩 美式女声（清晰温暖）",
-                        "female_british": "👩 英式女声（优雅）",
-                        "male_american": "👨 美式男声（沉稳）",
-                        "male_british": "👨 英式男声（磁性）"
+                        "female_american": "👩 女声（清晰温暖）",
+                        "female_british": "👩 女声（优雅）",
+                        "male_american": "👨 男声（沉稳）",
+                        "male_british": "👨 男声（磁性）"
                     }[x],
                     index=0
                 )

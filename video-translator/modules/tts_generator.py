@@ -21,48 +21,50 @@ import numpy as np
 
 
 class TTSGenerator:
-    """文字转语音生成器 - 增强版"""
+    """文字转语音生成器 - 增强版（支持多语言）"""
+    
+    # 语言配置映射
+    LANGUAGE_CONFIGS = {
+        "zh": {"name": "Chinese", "instruction": "Speak in natural Mandarin Chinese"},
+        "ja": {"name": "Japanese", "instruction": "Speak in natural Japanese"},
+        "ko": {"name": "Korean", "instruction": "Speak in natural Korean"},
+        "fr": {"name": "French", "instruction": "Speak in natural French"},
+        "de": {"name": "German", "instruction": "Speak in natural German"},
+        "es": {"name": "Spanish", "instruction": "Speak in natural Spanish"},
+        "ru": {"name": "Russian", "instruction": "Speak in natural Russian"},
+        "ar": {"name": "Arabic", "instruction": "Speak in natural Arabic"},
+        "pt": {"name": "Portuguese", "instruction": "Speak in natural Portuguese"},
+        "en": {"name": "English", "instruction": "Speak in natural English"}
+    }
     
     # 预设声音配置
     PRESET_VOICES = {
         "female_american": {
             "name": "美式女声（清晰温暖）",
-            "system_prompt": (
-                "You are an English text-to-speech (TTS) model. "
-                "Always use the same clear, warm female American English voice. "
-                "Speak naturally, fluently, and consistently across all generations. "
-                "Do not include any background noise, effects, or non-speech sounds."
-            ),
+            "gender": "female",
+            "style": "clear, warm",
+            "accent": "American",
             "temperature": 0.4
         },
         "female_british": {
             "name": "英式女声（优雅）",
-            "system_prompt": (
-                "You are an English text-to-speech model. "
-                "Use a clear, elegant female British English voice with RP accent. "
-                "Speak naturally, fluently, and consistently across all generations. "
-                "Do not include any background noise, effects, or non-speech sounds."
-            ),
+            "gender": "female",
+            "style": "clear, elegant",
+            "accent": "British RP",
             "temperature": 0.4
         },
         "male_american": {
             "name": "美式男声（沉稳）",
-            "system_prompt": (
-                "You are an English text-to-speech model. "
-                "Use a deep, steady male American English voice. "
-                "Speak clearly and professionally, naturally, fluently, and consistently across all generations. "
-                "Do not include any background noise, effects, or non-speech sounds."
-            ),
+            "gender": "male",
+            "style": "deep, steady",
+            "accent": "American",
             "temperature": 0.4
         },
         "male_british": {
             "name": "英式男声（磁性）",
-            "system_prompt": (
-                "You are an English text-to-speech model. "
-                "Use a deep, smooth male British English voice. "
-                "Speak with clarity and warmth, naturally, fluently, and consistently across all generations. "
-                "Do not include any background noise, effects, or non-speech sounds."
-            ),
+            "gender": "male",
+            "style": "deep, smooth",
+            "accent": "British",
             "temperature": 0.4
         }
     }
@@ -93,6 +95,43 @@ class TTSGenerator:
         print(f"🔄 初始化 Boson AI TTS 客户端...")
         self.client = OpenAI(api_key=self.api_key, base_url=self.api_base)
         print("✅ 客户端初始化完成")
+    
+    def _get_system_prompt(self, target_lang, voice_type):
+        """
+        根据目标语言和声音类型生成system prompt
+        
+        Args:
+            target_lang: 目标语言代码
+            voice_type: 声音类型
+        
+        Returns:
+            str: system prompt
+        """
+        lang_config = self.LANGUAGE_CONFIGS.get(target_lang, self.LANGUAGE_CONFIGS["en"])
+        voice_config = self.PRESET_VOICES.get(voice_type, self.PRESET_VOICES["female_american"])
+        
+        if target_lang == "en":
+            # 英语：保持原有风格
+            system_prompt = (
+                f"You are an English text-to-speech (TTS) model. "
+                f"Use a {voice_config['style']} {voice_config['gender']} {voice_config['accent']} voice. "
+                f"{lang_config['instruction']} naturally, fluently, and consistently across all generations. "
+                f"Do not include any background noise, effects, or non-speech sounds."
+            )
+        else:
+            # 其他语言：明确指定目标语言
+            system_prompt = (
+                f"You are a multilingual text-to-speech (TTS) model. "
+                f"The user will provide text in {lang_config['name']} ({target_lang}). "
+                f"You MUST speak in {lang_config['name']} language. "
+                f"Use a {voice_config['style']} {voice_config['gender']} voice. "
+                f"{lang_config['instruction']}. "
+                f"Speak naturally, fluently, and consistently across all generations. "
+                f"Do not include any background noise, effects, or non-speech sounds. "
+                f"IMPORTANT: The output audio MUST be in {lang_config['name']}, NOT in English."
+            )
+        
+        return system_prompt
     
     def generate(self, translated_json_path, output_audio_path, target_lang="en", 
                  bitrate="192k", original_audio_path=None, 
@@ -222,8 +261,8 @@ class TTSGenerator:
                 final_output = str(temp_dir / f"segment_{i:03d}.wav")
                 
                 if voice_mode == "clone" and reference_audio and reference_text:
-                    # 使用语音克隆
-                    if self._generate_with_voice_cloning(text, reference_audio, reference_text, raw_output, target_duration):
+                    # 使用语音克隆（传递target_lang以支持多语言）
+                    if self._generate_with_voice_cloning(text, reference_audio, reference_text, raw_output, target_lang, target_duration):
                         raw_duration = self._get_audio_duration(raw_output)
                         print(f"    🎵 生成: {raw_duration:.1f}s")
                         
@@ -237,8 +276,8 @@ class TTSGenerator:
                         print(f"    ❌ 生成失败")
                 
                 elif voice_mode == "preset":
-                    # 使用预设声音
-                    if self._generate_with_preset_voice(text, preset_voice, raw_output, target_duration):
+                    # 使用预设声音（传递target_lang以支持多语言）
+                    if self._generate_with_preset_voice(text, preset_voice, raw_output, target_lang, target_duration):
                         raw_duration = self._get_audio_duration(raw_output)
                         print(f"    🎵 生成: {raw_duration:.1f}s")
                         
@@ -364,12 +403,14 @@ class TTSGenerator:
             print(f"⚠️  人声分离失败: {e}")
             return None, None
     
-    def _generate_with_preset_voice(self, text, voice_type, output_path,target_duration=None,max_retries=10):
-        """使用预设声音生成音频"""
+    def _generate_with_preset_voice(self, text, voice_type, output_path, target_lang="en", target_duration=None, max_retries=10):
+        """使用预设声音生成音频（支持多语言）"""
         if not text.strip():
             return False
         
         voice_config = self.PRESET_VOICES.get(voice_type, self.PRESET_VOICES["female_american"])
+        # 获取适配目标语言的system prompt
+        system_prompt = self._get_system_prompt(target_lang, voice_type)
         
         for attempt in range(max_retries):
             try:
@@ -381,7 +422,7 @@ class TTSGenerator:
                     messages=[
                         {
                             "role": "system",
-                            "content": voice_config["system_prompt"]
+                            "content": system_prompt  # 使用动态生成的prompt
                         },
                         {"role": "user", "content": text.strip()}
                     ],
@@ -608,8 +649,11 @@ class TTSGenerator:
         except:
             return False
     
-    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, target_duration=None,max_retries=5):
-        """使用语音克隆生成音频"""
+    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, target_lang="en", target_duration=None, max_retries=5):
+        """使用语音克隆生成音频（支持多语言）"""
+        # 获取语言配置
+        lang_config = self.LANGUAGE_CONFIGS.get(target_lang, self.LANGUAGE_CONFIGS["en"])
+        
         for attempt in range(max_retries):
             try:
                 # 记录开始时间
@@ -619,13 +663,29 @@ class TTSGenerator:
                 with open(reference_audio, "rb") as f:
                     ref_b64 = base64.b64encode(f.read()).decode("utf-8")
                 
+                # 根据目标语言调整system prompt
+                if target_lang == "en":
+                    system_prompt = (
+                        "You are a voice cloning assistant. "
+                        "Clone the voice from the reference audio and speak the new text "
+                        "naturally and fluently in English with the same tone, accent, and speaking style."
+                    )
+                else:
+                    system_prompt = (
+                        f"You are a multilingual voice cloning assistant. "
+                        f"Clone the voice from the reference audio and speak the new text "
+                        f"in {lang_config['name']} language naturally and fluently "
+                        f"with the same tone and speaking style. "
+                        f"IMPORTANT: The output audio MUST be in {lang_config['name']}, NOT in English."
+                    )
+                
                 # 调用API
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
                         {
                             "role": "system", 
-                            "content": "You are a voice cloning assistant. Clone the voice from the reference audio and speak the new text naturally and fluently with the same tone, accent, and speaking style."
+                            "content": system_prompt  # 使用动态生成的prompt
                         },
                         {"role": "user", "content": reference_text},
                         {
