@@ -9,6 +9,7 @@
    - 默认样式
    - 黄色底部样式
    - 模糊底条样式（漂亮推荐）
+6. 自适应字幕大小
 """
 
 import os
@@ -21,14 +22,14 @@ from datetime import timedelta
 class VideoComposer:
     """视频合成器 - 增强版"""
     
-    # 字幕样式预设
+    # 字幕样式预设（支持自适应大小）
     SUBTITLE_STYLES = {
         "default": {
             "name": "默认样式",
-            "description": "简单的白色字幕带黑色描边",
-            "force_style": (
+            "description": "简单的白色字幕带黑色描边，自适应大小",
+            "base_font_size": 24,  # 基础字体大小（针对1080p）
+            "force_style_template": (
                 "FontName=Arial,"
-                "FontSize=24,"
                 "PrimaryColour=&HFFFFFF&,"
                 "OutlineColour=&H000000&,"
                 "Outline=2,"
@@ -38,10 +39,10 @@ class VideoComposer:
         },
         "yellow_bottom": {
             "name": "黄色底部",
-            "description": "黄色字幕，底部居中，黑色描边",
-            "force_style": (
+            "description": "黄色字幕，底部居中，黑色描边，自适应大小",
+            "base_font_size": 20,  # 基础字体大小（针对1080p）
+            "force_style_template": (
                 "FontName=Arial,"
-                "FontSize=20,"
                 "PrimaryColour=&H00FFFF&,"
                 "OutlineColour=&H000000&,"
                 "Outline=2,"
@@ -51,10 +52,10 @@ class VideoComposer:
         },
         "blurred_bar": {
             "name": "模糊底条（推荐）",
-            "description": "柔和的模糊底条背景 + 白色黑边字幕",
-            "force_style": (
+            "description": "柔和的模糊底条背景 + 白色黑边字幕，自适应大小",
+            "base_font_size": 26,  # 基础字体大小（针对1080p）
+            "force_style_template": (
                 "FontName=Arial,"
-                "FontSize=26,"
                 "PrimaryColour=&HFFFFFF&,"
                 "BackColour=&H00000000&,"
                 "OutlineColour=&H00000000&,"
@@ -81,6 +82,69 @@ class VideoComposer:
             )
         except:
             raise RuntimeError("❌ ffmpeg 未安装或不可用")
+    
+    def _calculate_font_size(self, video_width, video_height, base_font_size=24):
+        """
+        根据视频分辨率计算自适应字体大小
+        
+        Args:
+            video_width: 视频宽度
+            video_height: 视频高度
+            base_font_size: 基础字体大小（针对1080p）
+        
+        Returns:
+            int: 计算后的字体大小
+        """
+        # 基准分辨率（1080p）
+        base_width = 1920
+        base_height = 1080
+        
+        # 计算对角线像素数作为参考
+        base_diagonal = (base_width ** 2 + base_height ** 2) ** 0.5
+        current_diagonal = (video_width ** 2 + video_height ** 2) ** 0.5
+        
+        # 根据对角线比例调整字体大小
+        scale_factor = current_diagonal / base_diagonal
+        
+        # 计算字体大小（最小16px，最大48px）
+        font_size = max(16, min(48, int(base_font_size * scale_factor)))
+        
+        print(f"📏 分辨率: {video_width}x{video_height}, 计算字体大小: {font_size}px")
+        return font_size
+    
+    def _get_adaptive_style(self, video_path, style_name):
+        """
+        获取自适应字幕样式
+        
+        Args:
+            video_path: 视频文件路径
+            style_name: 样式名称
+        
+        Returns:
+            dict: 包含自适应字体大小的样式配置
+        """
+        style_config = self.SUBTITLE_STYLES.get(style_name, self.SUBTITLE_STYLES["default"])
+        
+        # 获取视频信息
+        video_info = self.get_video_info(video_path)
+        video_width = video_info.get("width", 1920)
+        video_height = video_info.get("height", 1080)
+        
+        # 计算自适应字体大小
+        base_font_size = style_config.get("base_font_size", 24)
+        adaptive_font_size = self._calculate_font_size(video_width, video_height, base_font_size)
+        
+        # 构建完整的样式字符串
+        template = style_config.get("force_style_template", "")
+        force_style = template.replace("FontSize={}", f"FontSize={adaptive_font_size}")
+        
+        return {
+            "name": style_config["name"],
+            "description": style_config["description"],
+            "force_style": force_style,
+            "font_size": adaptive_font_size,
+            "requires_filter": style_config.get("requires_filter", False)
+        }
     
     def compose(self, video_path, audio_path, output_path, 
                 subtitle_path=None, subtitle_style="default", keep_original_audio=False):
@@ -111,6 +175,10 @@ class VideoComposer:
             print("🎬 Step 5: 视频合成")
             print("=" * 80)
             
+            # 获取视频信息
+            video_info = self.get_video_info(video_path)
+            print(f"📊 视频信息: {video_info['width']}x{video_info['height']}, {video_info['fps']:.2f}fps, {video_info['duration']:.1f}s")
+            
             # 先对齐音视频时长
             aligned_audio = self._align_audio_to_video(video_path, audio_path, output_path)
             if not aligned_audio:
@@ -119,13 +187,13 @@ class VideoComposer:
             
             # 根据配置选择合成方式
             if subtitle_path and os.path.exists(subtitle_path):
-                # 有字幕的情况
-                style_name = self.SUBTITLE_STYLES.get(subtitle_style, self.SUBTITLE_STYLES["default"])["name"]
-                print(f"📝 字幕样式: {style_name}")
+                # 有字幕的情况 - 使用自适应样式
+                adaptive_style = self._get_adaptive_style(video_path, subtitle_style)
+                print(f"📝 字幕样式: {adaptive_style['name']} (字体大小: {adaptive_style['font_size']}px)")
                 
                 return self._compose_with_subtitles(
                     video_path, aligned_audio, output_path,
-                    subtitle_path, subtitle_style, keep_original_audio
+                    subtitle_path, adaptive_style, keep_original_audio
                 )
             else:
                 # 无字幕的情况
@@ -234,9 +302,8 @@ class VideoComposer:
             return False
     
     def _compose_with_subtitles(self, video_path, audio_path, output_path, 
-                                 subtitle_path, style, keep_original_audio):
+                                 subtitle_path, style_config, keep_original_audio):
         """合成视频（带字幕）"""
-        style_config = self.SUBTITLE_STYLES.get(style, self.SUBTITLE_STYLES["default"])
         
         # 检查是否需要模糊底条效果
         if style_config.get("requires_filter", False):
@@ -258,7 +325,7 @@ class VideoComposer:
         # 转义字幕路径
         subtitle_path_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
         
-        # 构建字幕滤镜
+        # 构建字幕滤镜（使用自适应样式）
         force_style = style_config.get("force_style", "")
         subtitles_filter = f"subtitles={subtitle_path_escaped}:force_style='{force_style}'"
         
@@ -316,7 +383,7 @@ class VideoComposer:
         # 转义字幕路径
         subtitle_path_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
         
-        # 获取字幕样式
+        # 获取自适应字幕样式
         force_style = style_config.get("force_style", "")
         
         # 构建复杂的视频滤镜
@@ -499,7 +566,7 @@ class VideoComposer:
         
         return {
             "duration": 0,
-            "width": 0,
-            "height": 0,
+            "width": 1920,  # 默认值
+            "height": 1080, # 默认值
             "fps": 0
         }
