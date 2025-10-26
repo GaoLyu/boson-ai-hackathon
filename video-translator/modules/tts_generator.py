@@ -40,8 +40,8 @@ class TTSGenerator:
             "system_prompt": (
                 "You are an English text-to-speech model. "
                 "Use a clear, elegant female British English voice with RP accent. "
-                "Speak naturally and fluently. "
-                "No background noise or effects."
+                "Speak naturally, fluently, and consistently across all generations. "
+                "Do not include any background noise, effects, or non-speech sounds."
             ),
             "temperature": 0.4
         },
@@ -50,8 +50,8 @@ class TTSGenerator:
             "system_prompt": (
                 "You are an English text-to-speech model. "
                 "Use a deep, steady male American English voice. "
-                "Speak clearly and professionally. "
-                "No background noise or effects."
+                "Speak clearly and professionally, naturally, fluently, and consistently across all generations. "
+                "Do not include any background noise, effects, or non-speech sounds."
             ),
             "temperature": 0.4
         },
@@ -60,8 +60,8 @@ class TTSGenerator:
             "system_prompt": (
                 "You are an English text-to-speech model. "
                 "Use a deep, smooth male British English voice. "
-                "Speak with clarity and warmth. "
-                "No background noise or effects."
+                "Speak with clarity and warmth, naturally, fluently, and consistently across all generations. "
+                "Do not include any background noise, effects, or non-speech sounds."
             ),
             "temperature": 0.4
         }
