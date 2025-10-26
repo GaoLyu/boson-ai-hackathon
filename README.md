@@ -10,8 +10,8 @@ This Streamlit web app performs end-to-end video translation with editable trans
 The **Video Language Translator** automatically:
 1. **Extracts audio** from a video.  
 2. **Transcribes speech** using ASR (FunASR).  
-3. **Translates** the transcript into a chosen language via **Boson AI**.  
-4. **Generates new speech audio** in the target language — using **voice cloning** or **preset voices**.  
+3. **Translates** the transcript into a chosen language.  
+4. **Generates new speech audio** in the target language — using **voice cloning** or **preset voices**  via **Boson AI**.  
 5. **Re-composes the video**, aligning the new audio track and optional subtitles with the original visuals.  
 
 You can preview, edit, and re-run each step interactively — no coding required.
