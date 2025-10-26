@@ -160,31 +160,6 @@ def main():
         
         # 高级选项
         with st.expander("🔧 高级选项"):
-            # 字幕选项
-            add_subtitles = st.checkbox("添加字幕", value=True)
-            subtitle_style = st.selectbox(
-                "字幕样式",
-                options=["default", "yellow_bottom", "blurred_bar"],
-                format_func=lambda x: {
-                    "default": "默认样式（简单白色）",
-                    "yellow_bottom": "黄色底部（经典）",
-                    "blurred_bar": "模糊底条（推荐✨）"
-                }[x],
-                index=2,  # 默认选择模糊底条
-                disabled=not add_subtitles,
-                help="模糊底条效果最漂亮，但渲染时间稍长"
-            )
-            
-            # 音频选项
-            keep_original_audio = st.checkbox("保留原音频（混合）", value=False)
-            audio_bitrate = st.select_slider(
-                "音频比特率",
-                options=["128k", "192k", "256k", "320k"],
-                value="192k"
-            )
-            
-            st.divider()
-            
             # TTS选项
             st.subheader("🎤 语音生成选项")
             
@@ -228,6 +203,29 @@ def main():
                 value=0.18,
                 step=0.02,
                 help="调整最终视频中背景音乐的音量"
+            )
+            # 音频选项
+            keep_original_audio = st.checkbox("保留原音频（混合）", value=False)
+            audio_bitrate = st.select_slider(
+                "音频比特率",
+                options=["128k", "192k", "256k", "320k"],
+                value="192k"
+            )
+            
+            st.divider()
+            # 字幕选项
+            add_subtitles = st.checkbox("添加字幕", value=True)
+            subtitle_style = st.selectbox(
+                "字幕样式",
+                options=["default", "yellow_bottom", "blurred_bar"],
+                format_func=lambda x: {
+                    "default": "默认样式（简单白色）",
+                    "yellow_bottom": "黄色底部（经典）",
+                    "blurred_bar": "模糊底条（推荐✨）"
+                }[x],
+                index=2,  # 默认选择模糊底条
+                disabled=not add_subtitles,
+                help="模糊底条效果最漂亮，但渲染时间稍长"
             )
         
         st.divider()
