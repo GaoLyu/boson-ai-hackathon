@@ -75,7 +75,7 @@ class TTSGenerator:
             api_key: API密钥
             api_base: API基础URL
         """
-        self.api_key = api_key or os.getenv("BOSON_API_KEY", "bai-C8daJQcbo2sMbwgr9aTNmCZM4C1zliRyWLPNA3cRGGksCagH")
+        self.api_key = api_key or os.getenv("BOSON_API_KEY", "bai-4RckqUuoLpgxtUFcgT4fMwHQddd-dR0_AZOxII6UOZhPmR1s")
         self.api_base = api_base or "https://hackathon.boson.ai/v1"
         self.model = "higgs-audio-generation-Hackathon"
         
@@ -223,7 +223,7 @@ class TTSGenerator:
                 
                 if voice_mode == "clone" and reference_audio and reference_text:
                     # 使用语音克隆
-                    if self._generate_with_voice_cloning(text, reference_audio, reference_text, raw_output):
+                    if self._generate_with_voice_cloning(text, reference_audio, reference_text, raw_output, target_duration):
                         raw_duration = self._get_audio_duration(raw_output)
                         print(f"    🎵 生成: {raw_duration:.1f}s")
                         
@@ -238,7 +238,7 @@ class TTSGenerator:
                 
                 elif voice_mode == "preset":
                     # 使用预设声音
-                    if self._generate_with_preset_voice(text, preset_voice, raw_output):
+                    if self._generate_with_preset_voice(text, preset_voice, raw_output, target_duration):
                         raw_duration = self._get_audio_duration(raw_output)
                         print(f"    🎵 生成: {raw_duration:.1f}s")
                         
@@ -364,7 +364,7 @@ class TTSGenerator:
             print(f"⚠️  人声分离失败: {e}")
             return None, None
     
-    def _generate_with_preset_voice(self, text, voice_type, output_path, max_retries=10):
+    def _generate_with_preset_voice(self, text, voice_type, output_path,target_duration=None,max_retries=10):
         """使用预设声音生成音频"""
         if not text.strip():
             return False
@@ -409,28 +409,63 @@ class TTSGenerator:
                     f.write(base64.b64decode(audio_b64))
                 
                 duration = self._get_audio_duration(tmp_output)
-                
+                if target_duration is not None and target_duration > 0:
+                    duration_ratio = duration / target_duration
+                    
+                    print(f"    📊 生成 {duration:.2f}s / 目标 {target_duration:.2f}s (比例 {duration_ratio:.2f}x)")
+                    
+                    # 检查异常时长
+                    if duration > 30:
+                        print(f"    ⚠️  音频异常长 ({duration:.1f}s)")
+                        if attempt < max_retries - 1:
+                            print(f"    🔄 重新生成 ({attempt + 2}/{max_retries})...")
+                            time.sleep(1)
+                            continue
+                        else:
+                            return True
+                    
+                    # 时长比例检查
+                    if 0.5 <= duration_ratio <= 2.2:
+                        if 0.9 <= duration_ratio <= 1.1:
+                            print(f"    ✅ 时长完美匹配")
+                        else:
+                            print(f"    ✅ 时长合理，建议调速 {duration_ratio:.2f}x")
+                        return True
+                    else:
+                        if duration_ratio < 0.5:
+                            print(f"    ⚠️  太短 ({duration_ratio:.2f}x < 0.5x)")
+                        else:
+                            print(f"    ⚠️  太长 ({duration_ratio:.2f}x > 2.0x)")
+                        
+                        if attempt < max_retries - 1:
+                            print(f"    🔄 重新生成 ({attempt + 2}/{max_retries})...")
+                            time.sleep(1)
+                            continue
+                        else:
+                            print(f"    ⚠️  达到最大重试，返回结果（需强制调速）")
+                            return True
+                else:    
                 # 检查生成是否异常
                 # 1. 音频时长异常（太长或太短）
-                if duration > 20 or duration < 0.5:
-                    os.remove(tmp_output)
-                    if attempt < max_retries - 1:
-                        print(f"    ⚠️  异常时长 {duration:.1f}s，重新生成...")
-                        time.sleep(3)
-                        continue
-                    return False
-                
-                # 2. 生成时间异常（超过30秒）
-                if generation_time > 30:
-                    print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)，可能存在问题")
-                    # 但如果音频看起来正常，还是使用它
-                    if duration < 1 or duration > 15:
+                    if duration > 20 or duration < 0.5:
                         os.remove(tmp_output)
                         if attempt < max_retries - 1:
-                            print(f"    ⚠️  重新生成...")
+                            print(f"    ⚠️  异常时长 {duration:.1f}s，重新生成...")
                             time.sleep(3)
                             continue
                         return False
+                    
+                    # 2. 生成时间异常（超过30秒）
+                    if generation_time > 30:
+                        print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)，可能存在问题")
+                        # 但如果音频看起来正常，还是使用它
+                        if duration < 1 or duration > 15:
+                            os.remove(tmp_output)
+                            if attempt < max_retries - 1:
+                                print(f"    ⚠️  重新生成...")
+                                time.sleep(3)
+                                continue
+                            return False
                 
                 os.rename(tmp_output, output_path)
                 return True
@@ -473,12 +508,12 @@ class TTSGenerator:
                 return True
             
             # 需要调速
-            if 0.5 < ratio < 2.0:
+            if ratio < 2.2:
                 speed = 1.0 / ratio
                 return self._change_audio_speed(input_file, output_file, speed)
             
             # 长度差异太大，补静音或截断
-            if ratio >= 2.0:
+            if ratio >= 2.2:
                 return self._pad_silence(input_file, output_file, target_duration - actual_duration)
             else:
                 # 截断
@@ -573,7 +608,7 @@ class TTSGenerator:
         except:
             return False
     
-    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, max_retries=3):
+    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, target_duration=None,max_retries=5):
         """使用语音克隆生成音频"""
         for attempt in range(max_retries):
             try:
@@ -588,6 +623,10 @@ class TTSGenerator:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
+                        {
+                            "role": "system", 
+                            "content": "You are a voice cloning assistant. Clone the voice from the reference audio and speak the new text naturally and fluently with the same tone, accent, and speaking style."
+                        },
                         {"role": "user", "content": reference_text},
                         {
                             "role": "assistant",
@@ -625,24 +664,66 @@ class TTSGenerator:
                     # 检查音频时长是否异常
                     duration = self._get_audio_duration(output_path)
                     
-                    # 检查生成是否异常
-                    # 1. 音频时长异常
-                    if duration > 30:
-                        print(f"    ⚠️  异常时长 {duration:.1f}s")
-                        if attempt < max_retries - 1:
-                            print(f"    ⚠️  重新生成...")
-                            time.sleep(2)
-                            continue
+                    # === 智能时长检查逻辑 ===
+                    if target_duration is not None and target_duration > 0:
+                        duration_ratio = duration / target_duration
+                        
+                        print(f"    📊 生成 {duration:.2f}s / 目标 {target_duration:.2f}s (比例 {duration_ratio:.2f}x)")
+                        
+                        # 检查1: 音频时长绝对异常（>30秒）
+                        if duration > 30:
+                            print(f"    ⚠️  音频异常长 ({duration:.1f}s)")
+                            if attempt < max_retries - 1:
+                                print(f"    🔄 重新生成 ({attempt + 2}/{max_retries})...")
+                                time.sleep(2)
+                                continue
+                            else:
+                                # 最后一次尝试，返回但标记需要调速
+                                return True
+                        
+                        # 检查2: 时长比例检查
+                        if 0.5 <= duration_ratio <= 2.2:
+                            # 在合理范围内，接受
+                            if 0.9 <= duration_ratio <= 1.1:
+                                print(f"    ✅ 时长完美匹配")
+                            else:
+                                print(f"    ✅ 时长合理，建议调速 {duration_ratio:.2f}x")
+                            return True
+                        else:
+                            # 时长偏差太大
+                            if duration_ratio < 0.5:
+                                print(f"    ⚠️  太短 ({duration_ratio:.2f}x < 0.5x)")
+                            else:
+                                print(f"    ⚠️  太长 ({duration_ratio:.2f}x > 2.0x)")
+                            
+                            if attempt < max_retries - 1:
+                                print(f"    🔄 重新生成 ({attempt + 2}/{max_retries})...")
+                                time.sleep(2)
+                                continue
+                            else:
+                                # 最后一次尝试，返回但需要强制调速
+                                print(f"    ⚠️  达到最大重试，返回结果（需强制调速）")
+                                return True
                     
-                    # 2. 生成时间异常（超过45秒）
-                    if generation_time > 45:
-                        print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)")
-                        # 但如果音频看起来正常，还是使用它
-                        if duration < 1 or duration > 20:
+                    else:
+                        # 检查生成是否异常
+                        # 1. 音频时长异常
+                        if duration > 30:
+                            print(f"    ⚠️  异常时长 {duration:.1f}s")
                             if attempt < max_retries - 1:
                                 print(f"    ⚠️  重新生成...")
                                 time.sleep(2)
                                 continue
+                        
+                        # 2. 生成时间异常（超过45秒）
+                        if generation_time > 45:
+                            print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)")
+                            # 但如果音频看起来正常，还是使用它
+                            if duration < 1 or duration > 20:
+                                if attempt < max_retries - 1:
+                                    print(f"    ⚠️  重新生成...")
+                                    time.sleep(2)
+                                    continue
                     
                     return True
                 

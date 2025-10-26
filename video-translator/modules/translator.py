@@ -22,7 +22,7 @@ class Translator:
             api_base: API基础URL
             model: 模型名称
         """
-        self.api_key = api_key or os.getenv("BOSON_API_KEY", "bai-C8daJQcbo2sMbwgr9aTNmCZM4C1zliRyWLPNA3cRGGksCagH")
+        self.api_key = api_key or os.getenv("BOSON_API_KEY", "bai-4RckqUuoLpgxtUFcgT4fMwHQddd-dR0_AZOxII6UOZhPmR1s")
         self.api_base = api_base or "https://hackathon.boson.ai/v1"
         self.model = model or "Qwen3-32B-non-thinking-Hackathon"
         self.client = None
