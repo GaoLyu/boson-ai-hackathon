@@ -373,6 +373,9 @@ class TTSGenerator:
         
         for attempt in range(max_retries):
             try:
+                # 记录开始时间
+                start_time = time.time()
+                
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -386,13 +389,18 @@ class TTSGenerator:
                     max_completion_tokens=2048,
                     temperature=voice_config["temperature"],
                     top_p=0.9,
-                    stream=False
+                    stream=False,
+                    timeout=30  # 添加30秒超时
                 )
+                
+                # 计算生成时间
+                generation_time = time.time() - start_time
                 
                 audio_b64 = getattr(response.choices[0].message.audio, "data", None)
                 if not audio_b64:
                     if attempt < max_retries - 1:
-                        time.sleep(5)
+                        print(f"    ⚠️  无音频响应，{attempt+1}/{max_retries} 次重试...")
+                        time.sleep(3)
                         continue
                     return False
                 
@@ -402,23 +410,50 @@ class TTSGenerator:
                 
                 duration = self._get_audio_duration(tmp_output)
                 
-                # 过滤异常长度
+                # 检查生成是否异常
+                # 1. 音频时长异常（太长或太短）
                 if duration > 20 or duration < 0.5:
                     os.remove(tmp_output)
                     if attempt < max_retries - 1:
-                        time.sleep(5)
+                        print(f"    ⚠️  异常时长 {duration:.1f}s，重新生成...")
+                        time.sleep(3)
                         continue
                     return False
+                
+                # 2. 生成时间异常（超过30秒）
+                if generation_time > 30:
+                    print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)，可能存在问题")
+                    # 但如果音频看起来正常，还是使用它
+                    if duration < 1 or duration > 15:
+                        os.remove(tmp_output)
+                        if attempt < max_retries - 1:
+                            print(f"    ⚠️  重新生成...")
+                            time.sleep(3)
+                            continue
+                        return False
                 
                 os.rename(tmp_output, output_path)
                 return True
             
+            except TimeoutError:
+                print(f"    ⚠️  请求超时，{attempt+1}/{max_retries} 次重试...")
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                else:
+                    return False
+            
             except Exception as e:
+                error_msg = str(e)
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    print(f"    ⚠️  超时错误，{attempt+1}/{max_retries} 次重试...")
+                elif attempt < max_retries - 1:
+                    print(f"    ⚠️  错误: {error_msg[:60]}，重试中...")
+                else:
+                    print(f"    ❌ 错误: {error_msg[:60]}")
+                    return False
+                
                 if attempt < max_retries - 1:
                     time.sleep(3)
-                else:
-                    print(f"    ⚠️  错误: {str(e)[:60]}")
-                    return False
         
         return False
     
@@ -538,10 +573,13 @@ class TTSGenerator:
         except:
             return False
     
-    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, max_retries=2):
+    def _generate_with_voice_cloning(self, text, reference_audio, reference_text, output_path, max_retries=3):
         """使用语音克隆生成音频"""
         for attempt in range(max_retries):
             try:
+                # 记录开始时间
+                start_time = time.time()
+                
                 # 读取参考音频并编码为base64
                 with open(reference_audio, "rb") as f:
                     ref_b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -569,8 +607,12 @@ class TTSGenerator:
                     top_p=0.9,
                     stream=False,
                     stop=["<|eot_id|>", "<|end_of_text|>", "<|audio_eos|>"],
-                    extra_body={"top_k": 40}
+                    extra_body={"top_k": 40},
+                    timeout=45  # 添加45秒超时
                 )
+                
+                # 计算生成时间
+                generation_time = time.time() - start_time
                 
                 # 获取生成的音频
                 if hasattr(response.choices[0].message, 'audio') and response.choices[0].message.audio:
@@ -583,20 +625,54 @@ class TTSGenerator:
                     # 检查音频时长是否异常
                     duration = self._get_audio_duration(output_path)
                     
-                    if duration > 30:  # 异常长音频
+                    # 检查生成是否异常
+                    # 1. 音频时长异常
+                    if duration > 30:
+                        print(f"    ⚠️  异常时长 {duration:.1f}s")
                         if attempt < max_retries - 1:
-                            time.sleep(1)
+                            print(f"    ⚠️  重新生成...")
+                            time.sleep(2)
                             continue
+                    
+                    # 2. 生成时间异常（超过45秒）
+                    if generation_time > 45:
+                        print(f"    ⚠️  生成时间过长 ({generation_time:.1f}s)")
+                        # 但如果音频看起来正常，还是使用它
+                        if duration < 1 or duration > 20:
+                            if attempt < max_retries - 1:
+                                print(f"    ⚠️  重新生成...")
+                                time.sleep(2)
+                                continue
                     
                     return True
                 
+                # 没有音频响应
+                if attempt < max_retries - 1:
+                    print(f"    ⚠️  无音频响应，{attempt+1}/{max_retries} 次重试...")
+                    time.sleep(2)
+                    continue
+                
                 return False
             
-            except Exception as e:
+            except TimeoutError:
+                print(f"    ⚠️  克隆超时，{attempt+1}/{max_retries} 次重试...")
                 if attempt < max_retries - 1:
-                    time.sleep(1)
+                    time.sleep(3)
                 else:
                     return False
+            
+            except Exception as e:
+                error_msg = str(e)
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    print(f"    ⚠️  超时错误，{attempt+1}/{max_retries} 次重试...")
+                elif attempt < max_retries - 1:
+                    print(f"    ⚠️  错误: {error_msg[:60]}，重试中...")
+                else:
+                    print(f"    ❌ 克隆失败: {error_msg[:60]}")
+                    return False
+                
+                if attempt < max_retries - 1:
+                    time.sleep(2)
         
         return False
     
