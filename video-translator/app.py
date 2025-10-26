@@ -207,14 +207,27 @@ def main():
         
         # 处理进度
         st.header("📊 处理进度")
-        progress_text = ["等待上传", "提取音频", "语音识别", "翻译文本", "生成音频", "合成视频"]
-        for i, text in enumerate(progress_text):
-            if i < st.session_state.processing_stage:
-                st.success(f"✅ {text}")
-            elif i == st.session_state.processing_stage:
-                st.info(f"⏳ {text}")
-            else:
-                st.text(f"⭕ {text}")
+        # 创建进度显示的占位符
+        if 'progress_placeholder' not in st.session_state:
+            st.session_state.progress_placeholder = st.empty()
+        
+        # 定义更新函数并存储在 session state 中
+        def update_progress_display():
+            with st.session_state.progress_placeholder.container():
+                progress_text = ["等待上传", "提取音频", "语音识别", "翻译文本", "生成音频", "合成视频"]
+                for i, text in enumerate(progress_text):
+                    if i < st.session_state.processing_stage:
+                        st.success(f"✅ {text}")
+                    elif i == st.session_state.processing_stage:
+                        st.info(f"⏳ {text}")
+                    else:
+                        st.text(f"⭕ {text}")
+        
+        # 将函数存储在 session state 中
+        st.session_state.update_progress_display = update_progress_display
+        
+        # 初始显示或更新显示
+        update_progress_display()
     
     # 主内容区域
     col1, col2 = st.columns([2, 1])
@@ -343,10 +356,16 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
     
     # 创建临时工作目录
     work_dir = tempfile.mkdtemp()
-    
+    def update_progress(stage):
+        """更新进度并刷新显示"""
+        st.session_state.processing_stage = stage
+        # 调用侧边栏的更新函数
+        if 'update_progress_display' in st.session_state:
+            st.session_state.update_progress_display()
     try:
         # ========== 步骤 1: 提取音频 ==========
         st.session_state.processing_stage = 1
+        update_progress(1)
         with st.spinner("🎵 正在提取音频..."):
             extractor = AudioExtractor()
             audio_path = os.path.join(work_dir, "audio.mp3")
@@ -362,6 +381,7 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
         
         # ========== 步骤 2: 语音识别 ==========
         st.session_state.processing_stage = 2
+        update_progress(2)
         with st.spinner("🎤 正在识别语音..."):
             transcriber = Transcriber()
             transcript_path = os.path.join(work_dir, "transcript.json")
@@ -387,6 +407,7 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
         
         # ========== 步骤 3: 翻译文本 ==========
         st.session_state.processing_stage = 3
+        update_progress(3)
         with st.spinner(f"🌍 正在翻译到 {target_lang}..."):
             translator = Translator()
             translated_path = os.path.join(work_dir, "translated.json")
@@ -416,6 +437,7 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
         
         # ========== 步骤 4: 生成音频 ==========
         st.session_state.processing_stage = 4
+        update_progress(4)
         with st.spinner("🔊 正在生成新音频..."):
             tts = TTSGenerator()
             new_audio_path = os.path.join(work_dir, "translated_audio.mp3")
@@ -446,6 +468,7 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
         
         # ========== 步骤 5: 合成视频 ==========
         st.session_state.processing_stage = 5
+        update_progress(5)
         with st.spinner("🎬 正在合成最终视频..."):
             composer = VideoComposer()
             output_path = os.path.join(work_dir, "output_video.mp4")
@@ -469,6 +492,7 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
             if success:
                 st.session_state.output_video_path = output_path
                 st.session_state.processing_stage = 6
+                update_progress(6)
                 st.session_state.processing_complete = True
                 st.session_state.target_lang = target_lang
                 
