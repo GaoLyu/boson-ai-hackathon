@@ -1,6 +1,6 @@
 """
 翻译模块
-使用 Boson AI API 将文本翻译成目标语言
+使用 Boson AI API 将文本翻译成目标语言（增强版 - 支持风格分析和对比输出）
 """
 
 import os
@@ -11,7 +11,7 @@ from openai import OpenAI
 
 
 class Translator:
-    """文本翻译器 - 使用 Boson AI"""
+    """文本翻译器 - 使用 Boson AI（增强版）"""
     
     def __init__(self, api_key=None, api_base=None, model=None):
         """
@@ -74,28 +74,75 @@ class Translator:
             sentences = result.get("sentence_info", [])
             total = len(sentences)
             
-            print(f"🌍 开始翻译 {total} 个句子...")
+            print("=" * 80)
+            print(f"🎬 Step 2: 文本翻译")
+            print("=" * 80)
+            print(f"✅ 加载 {total} 个句子")
             
-            # 第一步：分析内容风格
-            style_info = self._analyze_content_style(sentences, target_lang)
+            # 获取语言名称
+            source_lang = "Chinese"  # 假设源语言是中文
+            target_lang_name = self._get_language_name(target_lang)
+            print(f"🌍 翻译方向: {source_lang} → {target_lang_name}")
             
-            # 第二步：整段翻译
-            translations = self._translate_full_script(sentences, style_info, target_lang)
+            # ===== 步骤1: 分析内容风格 =====
+            print("\n" + "=" * 80)
+            print("🔍 步骤 1/3: 分析视频内容风格")
+            print("=" * 80)
+            style_info = self._analyze_content_style(sentences)
+            
+            # ===== 步骤2: 整段翻译 =====
+            print("\n" + "=" * 80)
+            print(f"📝 步骤 2/3: 整段翻译 ({source_lang} → {target_lang_name})")
+            print("=" * 80)
+            translations = self._translate_full_script(sentences, style_info, source_lang, target_lang_name)
             
             if not translations:
                 print("❌ 翻译失败")
                 return False
             
-            # 第三步：长度调整
-            adjusted = self._adjust_by_length(sentences, translations, target_lang)
+            # ===== 步骤2.5: 整体润色（可选 - 默认关闭）=====
+            # 如果需要更自然的翻译，取消下面的注释
+            # print("\n" + "=" * 80)
+            # print("🎭 步骤 2.5/3: 整体润色（可选）")
+            # print("=" * 80)
+            # translations = self._refine_translation_globally(sentences, translations, style_info, target_lang_name)
+            
+            # ===== 步骤3: 输出翻译对比 =====
+            print("\n" + "=" * 80)
+            print("✏️  步骤 3/3: 翻译对比")
+            print("=" * 80)
+            
+            # 显示详细的翻译对比
+            print("\n翻译对比:")
+            print("-" * 80)
+            for i in range(min(len(sentences), len(translations))):
+                orig = sentences[i].get("text", "")
+                trans = translations[i]
+                orig_words = len(orig)
+                trans_words = len(trans.split())
+                
+                print(f"\n[{i+1}/{total}] 原文: {orig}")
+                print(f"     译文: {trans}")
+                print(f"     词数: 中文{orig_words}字 → 英文{trans_words}词")
+            
+            if len(sentences) > 5:
+                print(f"\n... (仅显示前5句，共{total}句)")
+            print("-" * 80)
             
             # 构建输出
             translated_sentences = []
             for i, s in enumerate(sentences):
-                trans_text = adjusted[i] if i < len(adjusted) else ""
+                trans_text = translations[i] if i < len(translations) else ""
+                
+                # 根据目标语言决定字段名
+                if target_lang == "en":
+                    field_name = "text_en"
+                else:
+                    field_name = "text_translated"
+                
                 translated_sentences.append({
                     "text": s.get("text", ""),
-                    "text_en" if target_lang == "en" else "text_translated": trans_text,
+                    field_name: trans_text,
                     "start": s.get("start", 0),
                     "end": s.get("end", 0)
                 })
@@ -107,7 +154,8 @@ class Translator:
             with open(output_json_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            print(f"\n💾 已保存: {output_json_path}")
+            print(f"\n💾 翻译完成，结果已保存至: {output_json_path}")
+            print("=" * 80)
             return True
         
         except Exception as e:
@@ -116,16 +164,12 @@ class Translator:
             traceback.print_exc()
             return False
     
-    def _analyze_content_style(self, sentences, target_lang):
+    def _analyze_content_style(self, sentences):
         """分析视频内容风格"""
-        print("\n🔍 分析内容风格...")
-        
-        # 抽样分析
+        # 抽样分析：取前5句和后2句
         sample_texts = [s.get("text", "").strip() for s in sentences[:5]]
         sample_texts += [s.get("text", "").strip() for s in sentences[-2:]]
         sample = "\n".join([f"{i+1}. {t}" for i, t in enumerate(sample_texts) if t])
-        
-        lang_name = self._get_language_name(target_lang)
         
         prompt = f"""Analyze this video transcript sample and identify:
 
@@ -150,16 +194,15 @@ Keep it concise:"""
                 max_tokens=200
             )
             analysis = response.choices[0].message.content.strip()
-            print(f"📊 分析结果: {analysis[:100]}...")
+            print(f"\n📊 内容分析:\n{analysis}\n")
             return {"analysis": analysis}
         except Exception as e:
             print(f"⚠️ 分析失败: {e}")
             return {"analysis": "General video content."}
     
-    def _translate_full_script(self, sentences, style_info, target_lang):
-        """整段翻译"""
-        print(f"\n📝 正在翻译全文...")
-        
+    def _translate_full_script(self, sentences, style_info, source_lang, target_lang):
+        """整段翻译（保留时间戳结构）"""
+        # 构建完整脚本
         full_script = []
         for i, s in enumerate(sentences):
             text = s.get("text", "").strip()
@@ -168,9 +211,8 @@ Keep it concise:"""
         script_text = "\n".join(full_script)
         
         style_context = style_info.get("analysis", "")
-        lang_name = self._get_language_name(target_lang)
         
-        prompt = f"""You are translating a video transcript to {lang_name}.
+        prompt = f"""You are translating a video transcript from {source_lang} to {target_lang}.
 
 CONTENT ANALYSIS:
 {style_context}
@@ -179,14 +221,15 @@ FULL TRANSCRIPT:
 {script_text}
 
 TRANSLATION REQUIREMENTS:
-1. Translate naturally and fluently as if it were originally in {lang_name}.
+1. Translate naturally and fluently as if it were originally in {target_lang}.
 2. Keep the same tone, humor, and emotional style.
 3. Output numbered sentences exactly as in the input (1., 2., 3., ...).
-4. Only return the translated lines — do not repeat the original text.
+4. Only return the translated lines — do not repeat the {source_lang} text.
 
 Begin translation:"""
         
         try:
+            print("\n🤖 正在翻译中...")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -203,67 +246,27 @@ Begin translation:"""
                 line = line.strip()
                 if not line:
                     continue
-                # 去掉序号
+                # 去掉序号（支持 1. / 1) / 1、等）
                 line = re.sub(r"^\d+[\.\)、]\s*", "", line)
                 line = self._clean_text(line)
                 if line and len(line) > 1:
                     lines.append(line)
             
-            print(f"✅ 成功翻译 {len(lines)} 句")
+            print(f"✅ 成功翻译 {len(lines)} 句\n")
+            
+            # 显示翻译预览
+            print("翻译预览:")
+            print("-" * 80)
+            for i in range(min(5, len(lines))):
+                print(f"{i+1}. {lines[i]}")
+            if len(lines) > 5:
+                print(f"... (还有 {len(lines)-5} 句)")
+            print("-" * 80)
+            
             return lines
         except Exception as e:
             print(f"❌ 翻译失败: {e}")
             return []
-    
-    def _adjust_by_length(self, sentences, translations, target_lang):
-        """调整翻译长度"""
-        print(f"\n✏️  调整翻译长度...")
-        
-        adjusted = []
-        lang_name = self._get_language_name(target_lang)
-        
-        for i, sent in enumerate(sentences):
-            if i >= len(translations):
-                continue
-            
-            text_orig = sent.get("text", "")
-            text_trans = translations[i]
-            
-            target_words = max(3, len(text_orig) // 3)
-            current_words = len(text_trans.split())
-            
-            print(f"  [{i+1}/{len(sentences)}] 词数: {current_words} → 目标: {target_words}", end="\r")
-            
-            if abs(current_words - target_words) <= 3:
-                adjusted_text = text_trans
-            else:
-                try:
-                    prompt = f"""Adjust this {lang_name} sentence so that its length (word count) is close to {target_words} words.
-Keep the same meaning, tone, and fluency.
-Sentence: "{text_trans}"
-Output only the adjusted sentence."""
-                    
-                    response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[
-                            {"role": "system", "content": f"You are a fluent {lang_name} editor."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.4,
-                        max_tokens=100
-                    )
-                    adjusted_text = self._clean_text(response.choices[0].message.content.strip())
-                    if not adjusted_text:
-                        adjusted_text = text_trans
-                except Exception as e:
-                    adjusted_text = text_trans
-                
-                time.sleep(0.2)
-            
-            adjusted.append(adjusted_text)
-        
-        print(f"\n✅ 长度调整完成")
-        return adjusted
     
     def _clean_text(self, text):
         """清理翻译文本"""
@@ -271,9 +274,86 @@ Output only the adjusted sentence."""
         text = re.sub(r'[\u4e00-\u9fff]+', '', text)
         # 移除中文标点
         text = re.sub(r'[，。！？、；：""''《》【】（）]', '', text)
-        # 清理空格
+        # 标准化空格
         text = ' '.join(text.split())
         return text.strip()
+    
+    def _refine_translation_globally(self, sentences, translations, style_info, target_lang):
+        """整体润色（保持幽默与节奏感）- 可选功能"""
+        print("\n🎭 正在进行整体润色（保持幽默与节奏感）...")
+        
+        style_context = style_info.get("analysis", "")
+        
+        # 构造中英对照文本
+        paired_lines = []
+        for i, s in enumerate(sentences):
+            orig = s.get("text", "").strip()
+            trans = translations[i] if i < len(translations) else ""
+            if orig and trans:
+                paired_lines.append(f"{i+1}. {orig}\n→ {trans}")
+        paired_text = "\n".join(paired_lines)
+        
+        prompt = f"""
+You are a bilingual humor script editor.
+Below is a bilingual translation of a video narration.
+
+Your task:
+1. Polish the {target_lang} translation as a whole so it reads naturally, witty, and rhythmic.
+2. Preserve all jokes, humor, and comedic pacing.
+3. Keep the meaning faithful to the original.
+4. Keep the numbering (1., 2., 3., ...). One line per number.
+5. Do NOT output the original text, only the improved {target_lang}.
+
+CONTENT STYLE:
+{style_context}
+
+TRANSLATION DRAFT:
+{paired_text}
+
+Now rewrite the {target_lang} lines according to the above requirements.
+Output format:
+1. ...
+2. ...
+"""
+        
+        try:
+            print("🤖 LLM 正在整体润色...")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": f"You are a witty, natural-sounding {target_lang} script editor."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2500
+            )
+            
+            refined_text = response.choices[0].message.content.strip()
+            refined_lines = []
+            for line in refined_text.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # 去掉序号
+                line = re.sub(r"^\d+[\.\)、]\s*", "", line)
+                line = self._clean_text(line)
+                if line:
+                    refined_lines.append(line)
+            
+            print(f"✅ 成功整体优化 {len(refined_lines)} 句")
+            print("润色预览:")
+            print("-" * 80)
+            for i in range(min(5, len(refined_lines))):
+                print(f"{i+1}. {refined_lines[i]}")
+            if len(refined_lines) > 5:
+                print(f"... (还有 {len(refined_lines)-5} 句)")
+            print("-" * 80)
+            
+            return refined_lines
+        
+        except Exception as e:
+            print(f"⚠️ 整体润色失败: {e}")
+            return translations
     
     def _get_language_name(self, lang_code):
         """获取语言名称"""

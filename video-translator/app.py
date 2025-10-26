@@ -76,6 +76,12 @@ def init_session_state():
         st.session_state.translation = None
     if 'output_video_path' not in st.session_state:
         st.session_state.output_video_path = None
+    if 'processing_complete' not in st.session_state:
+        st.session_state.processing_complete = False
+    if 'target_lang' not in st.session_state:
+        st.session_state.target_lang = None
+    if 'output_video_data' not in st.session_state:
+        st.session_state.output_video_data = None
 
 
 def main():
@@ -127,19 +133,83 @@ def main():
         
         # 高级选项
         with st.expander("🔧 高级选项"):
+            # 字幕选项
             add_subtitles = st.checkbox("添加字幕", value=True)
             subtitle_style = st.selectbox(
                 "字幕样式",
-                ["默认", "自定义（黄色底部）"],
-                disabled=not add_subtitles
+                options=["default", "yellow_bottom", "blurred_bar"],
+                format_func=lambda x: {
+                    "default": "默认样式（简单白色）",
+                    "yellow_bottom": "黄色底部（经典）",
+                    "blurred_bar": "模糊底条（推荐✨）"
+                }[x],
+                index=2,  # 默认选择模糊底条
+                disabled=not add_subtitles,
+                help="模糊底条效果最漂亮，但渲染时间稍长"
             )
             
+            # 音频选项
             keep_original_audio = st.checkbox("保留原音频（混合）", value=False)
             audio_bitrate = st.select_slider(
                 "音频比特率",
                 options=["128k", "192k", "256k", "320k"],
                 value="192k"
             )
+            
+            st.divider()
+            
+            # TTS选项
+            st.subheader("🎤 语音生成选项")
+            
+            voice_mode = st.radio(
+                "声音模式",
+                options=["clone", "preset"],
+                format_func=lambda x: "🎭 克隆原视频音色" if x == "clone" else "🎵 使用预设声音",
+                index=0,
+                help="克隆模式：保持原视频说话者的音色\n预设模式：使用AI模型的内置声音"
+            )
+            
+            if voice_mode == "preset":
+                preset_voice = st.selectbox(
+                    "选择预设声音",
+                    options=[
+                        "female_american",
+                        "female_british", 
+                        "male_american",
+                        "male_british"
+                    ],
+                    format_func=lambda x: {
+                        "female_american": "👩 美式女声（清晰温暖）",
+                        "female_british": "👩 英式女声（优雅）",
+                        "male_american": "👨 美式男声（沉稳）",
+                        "male_british": "👨 英式男声（磁性）"
+                    }[x],
+                    index=0
+                )
+            else:
+                preset_voice = "female_american"  # 默认值
+            
+            separate_vocals = st.checkbox(
+                "分离人声和背景音",
+                value=False,
+                help="使用Demucs分离人声和背景音乐（需要额外安装）"
+            )
+            
+            if separate_vocals:
+                keep_background = st.checkbox("保留背景音乐", value=True)
+                if keep_background:
+                    bgm_volume = st.slider(
+                        "背景音音量",
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=0.18,
+                        step=0.02
+                    )
+                else:
+                    bgm_volume = 0.0
+            else:
+                keep_background = False
+                bgm_volume = 0.18
         
         st.divider()
         
@@ -158,41 +228,97 @@ def main():
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("📁 步骤 1: 上传视频")
-        uploaded_file = st.file_uploader(
-            "选择要翻译的视频文件",
-            type=["mp4", "avi", "mov", "mkv", "flv"],
-            help="支持常见视频格式: MP4, AVI, MOV, MKV, FLV"
-        )
-        
-        if uploaded_file is not None:
-            # 保存上传的视频
-            if st.session_state.video_path is None:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
-                    tmp_file.write(uploaded_file.read())
-                    st.session_state.video_path = tmp_file.name
+        # 如果处理已完成，显示结果
+        if st.session_state.processing_complete and st.session_state.output_video_path:
+            st.header("🎉 处理完成！")
             
-            # 显示视频预览
-            st.video(st.session_state.video_path)
+            # 显示最终视频
+            st.video(st.session_state.output_video_path)
             
-            # 视频信息
-            video_size = os.path.getsize(st.session_state.video_path) / (1024 * 1024)
-            st.info(f"📹 视频大小: {video_size:.2f} MB")
+            # 文件信息
+            if os.path.exists(st.session_state.output_video_path):
+                output_size = os.path.getsize(st.session_state.output_video_path) / (1024 * 1024)
+                st.info(f"📹 输出视频大小: {output_size:.2f} MB")
+            
+            # 下载按钮 - 使用预加载的数据
+            if st.session_state.output_video_data:
+                st.download_button(
+                    label="📥 下载翻译后的视频",
+                    data=st.session_state.output_video_data,
+                    file_name=f"translated_video_{st.session_state.target_lang}.mp4",
+                    mime="video/mp4",
+                    key="download_button"
+                )
+            
+            # 统计信息
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.metric("处理阶段", "6/6")
+            with col_b:
+                if st.session_state.transcript:
+                    sentences = st.session_state.transcript[0].get("sentence_info", [])
+                    st.metric("识别句子数", len(sentences))
+            with col_c:
+                st.metric("目标语言", st.session_state.target_lang.upper() if st.session_state.target_lang else "")
             
             st.divider()
             
-            # 开始处理按钮
-            st.header("🚀 步骤 2: 开始处理")
+            # 重新开始按钮
+            if st.button("🔄 翻译新视频", type="secondary"):
+                # 清空所有状态
+                st.session_state.processing_stage = 0
+                st.session_state.video_path = None
+                st.session_state.audio_path = None
+                st.session_state.transcript = None
+                st.session_state.translation = None
+                st.session_state.output_video_path = None
+                st.session_state.processing_complete = False
+                st.session_state.target_lang = None
+                st.session_state.output_video_data = None
+                st.rerun()
+        
+        else:
+            # 未完成处理，显示上传界面
+            st.header("📁 步骤 1: 上传视频")
+            uploaded_file = st.file_uploader(
+                "选择要翻译的视频文件",
+                type=["mp4", "avi", "mov", "mkv", "flv"],
+                help="支持常见视频格式: MP4, AVI, MOV, MKV, FLV"
+            )
             
-            if st.button("开始翻译视频", type="primary"):
-                process_video(
-                    st.session_state.video_path,
-                    target_lang_code,
-                    add_subtitles,
-                    subtitle_style,
-                    keep_original_audio,
-                    audio_bitrate
-                )
+            if uploaded_file is not None:
+                # 保存上传的视频
+                if st.session_state.video_path is None:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
+                        tmp_file.write(uploaded_file.read())
+                        st.session_state.video_path = tmp_file.name
+                
+                # 显示视频预览
+                st.video(st.session_state.video_path)
+                
+                # 视频信息
+                video_size = os.path.getsize(st.session_state.video_path) / (1024 * 1024)
+                st.info(f"📹 视频大小: {video_size:.2f} MB")
+                
+                st.divider()
+                
+                # 开始处理按钮
+                st.header("🚀 步骤 2: 开始处理")
+                
+                if st.button("开始翻译视频", type="primary"):
+                    process_video(
+                        st.session_state.video_path,
+                        target_lang_code,
+                        add_subtitles,
+                        subtitle_style,
+                        keep_original_audio,
+                        audio_bitrate,
+                        voice_mode,
+                        preset_voice,
+                        separate_vocals,
+                        keep_background,
+                        bgm_volume
+                    )
     
     with col2:
         st.header("ℹ️ 使用说明")
@@ -218,7 +344,9 @@ def main():
         """)
 
 
-def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitrate):
+def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitrate,
+                  voice_mode="clone", preset_voice="female_american", 
+                  separate_vocals=False, keep_background=True, bgm_volume=0.18):
     """处理视频的主流程"""
     
     # 创建临时工作目录
@@ -300,13 +428,18 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
             tts = TTSGenerator()
             new_audio_path = os.path.join(work_dir, "translated_audio.mp3")
             
-            # 传入原始音频路径用于语音克隆
+            # 传入所有TTS参数
             success = tts.generate(
                 translated_path, 
                 new_audio_path, 
                 target_lang, 
                 bitrate,
-                original_audio_path=st.session_state.audio_path  # 传入原始音频
+                original_audio_path=st.session_state.audio_path,
+                voice_mode=voice_mode,
+                preset_voice=preset_voice,
+                separate_vocals=separate_vocals,
+                keep_background=keep_background,
+                bgm_volume=bgm_volume
             )
             
             if success:
@@ -344,36 +477,17 @@ def process_video(video_path, target_lang, add_subs, sub_style, keep_audio, bitr
             if success:
                 st.session_state.output_video_path = output_path
                 st.session_state.processing_stage = 6
+                st.session_state.processing_complete = True
+                st.session_state.target_lang = target_lang
+                
+                # 预加载视频数据到内存
+                with open(output_path, "rb") as f:
+                    st.session_state.output_video_data = f.read()
+                
                 st.success("✅ 视频合成完成！")
                 
-                # 显示最终视频
-                st.header("🎉 处理完成！")
-                st.video(output_path)
-                
-                # 文件信息
-                output_size = os.path.getsize(output_path) / (1024 * 1024)
-                st.info(f"📹 输出视频大小: {output_size:.2f} MB")
-                
-                # 下载按钮
-                with open(output_path, "rb") as f:
-                    st.download_button(
-                        label="📥 下载翻译后的视频",
-                        data=f.read(),
-                        file_name=f"translated_video_{target_lang}.mp4",
-                        mime="video/mp4"
-                    )
-                
-                # 统计信息
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("处理阶段", "6/6")
-                with col2:
-                    if st.session_state.transcript:
-                        sentences = st.session_state.transcript[0].get("sentence_info", [])
-                        st.metric("识别句子数", len(sentences))
-                with col3:
-                    st.metric("目标语言", target_lang.upper())
-                
+                # 触发页面刷新以显示结果
+                st.rerun()
             else:
                 st.error("❌ 视频合成失败")
                 return
